@@ -41,7 +41,7 @@ neoForge {
     }
 
     mods {
-        slashlootr {
+        slashloot {
             sourceSet sourceSets.main
         }
     }
@@ -83,13 +83,13 @@ processResources {
                 "neoforge_range": project.neoforge_range,
                 "minecraft_range": project.minecraft_range
     }
-    filesMatching("slashlootr.mixins.json") {
+    filesMatching("slashloot.mixins.json") {
         expand "mixin_compat": mixinCompat
     }
 }
 
 jar {
     from("${rootProject.projectDir}/LICENSE") {
-        rename { "${it}_slashlootr" }
+        rename { "${it}_slashloot" }
     }
 }

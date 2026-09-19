@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Publish SlashLootr per-band JARs to CurseForge.
+Publish SlashLoot per-band JARs to CurseForge.
 
-SlashLootr ships one JAR per (MC version band, loader) — no platform variants.
+SlashLoot ships one JAR per (MC version band, loader) — no platform variants.
 Each (band) becomes one CurseForge file. This is the simplified cousin of
 StreamCraft's per-platform-variant flow: same project ID resolution, same
 game-version catalog handling, same dry-run + selective-bands ergonomics —
@@ -145,10 +145,10 @@ CURSEFORGE_ENVIRONMENT = "Server"
 def parse_filename(jar_path: Path) -> tuple[str, str, str]:
     """
     Parse a JAR filename into (mod_version, mc_band, loader).
-    Expected shape: slashlootr-<ver>+mc<band>-<loader>.jar
+    Expected shape: slashloot-<ver>+mc<band>-<loader>.jar
     """
     name = jar_path.stem
-    m = re.match(r"^slashlootr-([^+]+)\+mc([0-9.]+)-(fabric|neoforge)$", name)
+    m = re.match(r"^slashloot-([^+]+)\+mc([0-9.]+)-(fabric|neoforge)$", name)
     if not m:
         raise ValueError(f"Cannot parse filename: {jar_path.name}")
     return m.group(1), m.group(2), m.group(3)
@@ -157,7 +157,7 @@ def parse_filename(jar_path: Path) -> tuple[str, str, str]:
 def discover_jars(release_dir: Path, mod_version: str) -> dict[tuple[str, str], Path]:
     """Return {(mc_band, loader): jar_path} for the given mod version."""
     found: dict[tuple[str, str], Path] = {}
-    for jar in sorted(release_dir.glob(f"slashlootr-{mod_version}+mc*.jar")):
+    for jar in sorted(release_dir.glob(f"slashloot-{mod_version}+mc*.jar")):
         if jar.name.endswith("-sources.jar") or jar.name.endswith("-dev.jar"):
             continue
         try:
@@ -329,7 +329,7 @@ def upload_band(
     metadata = {
         "changelog": changelog,
         "changelogType": changelog_type,
-        "displayName": f"slashlootr-{mod_version}+mc{band}-{loader}.jar",
+        "displayName": f"slashloot-{mod_version}+mc{band}-{loader}.jar",
         "gameVersions": game_version_ids,
         "releaseType": release_type,
     }

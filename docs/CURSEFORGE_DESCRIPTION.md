@@ -65,7 +65,7 @@ NeoForge coverage differs slightly: no 1.20.1 or 1.20.5 line, and no stable 21.6
 
 ## Configuration
 
-A `config/slashlootr.json` file is created on first launch:
+A `config/slashloot.json` file is created on first launch:
 
 ```json
 {
@@ -106,7 +106,7 @@ All require permission level 2 (op).
 | `/slashloot forget all` | Wipe every stored container in the current dimension |
 | `/slashloot prune` | Drop stored entries whose container no longer exists |
 | `/slashloot stats` | Stored entry counts for the current dimension |
-| `/slashloot reload` | Re-read `config/slashlootr.json` |
+| `/slashloot reload` | Re-read `config/slashloot.json` |
 
 ## Known limitations
 
@@ -117,6 +117,6 @@ All require permission level 2 (op).
 
 ## Source & links
 
-- **GitHub** (source, issues): https://github.com/slashdaemon/SlashLootr
-- **Architecture / per-band drift docs**: https://github.com/slashdaemon/SlashLootr/blob/main/docs/ARCHITECTURE.md
+- **GitHub** (source, issues): https://github.com/slashdaemon/SlashLoot
+- **Architecture / per-band drift docs**: https://github.com/slashdaemon/SlashLoot/blob/main/docs/ARCHITECTURE.md
 - **License**: CC-BY-4.0

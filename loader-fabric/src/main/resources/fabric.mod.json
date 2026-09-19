@@ -1,21 +1,21 @@
 {
   "schemaVersion": 1,
-  "id": "slashlootr",
+  "id": "slashloot",
   "version": "${version}",
   "name": "SlashLoot",
   "description": "Server-side per-player loot for naturally-generated chests, barrels, shulker boxes, chest minecarts, and chest boats. No client install required. No custom blocks. Vanilla-compatible.",
   "authors": ["Slash"],
   "contact": {
-    "homepage": "https://github.com/slashdaemon/SlashLootr",
-    "sources": "https://github.com/slashdaemon/SlashLootr",
-    "issues": "https://github.com/slashdaemon/SlashLootr/issues"
+    "homepage": "https://github.com/slashdaemon/SlashLoot",
+    "sources": "https://github.com/slashdaemon/SlashLoot",
+    "issues": "https://github.com/slashdaemon/SlashLoot/issues"
   },
   "license": "CC-BY-4.0",
   "environment": "server",
   "entrypoints": {
-    "main": ["dev.blockacademy.slashlootr.loader.fabric.SlashLootrFabric"]
+    "main": ["dev.blockacademy.slashloot.loader.fabric.SlashLootFabric"]
   },
-  "mixins": ["slashlootr.mixins.json"],
+  "mixins": ["slashloot.mixins.json"],
   "depends": {
     "fabricloader": ">=0.15.11",
     "minecraft": "~${minecraft_version}",

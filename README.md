@@ -1,4 +1,4 @@
-# SlashLootr
+# SlashLoot
 
 Server-side per-player loot for naturally-generated containers in Minecraft. **Fabric and NeoForge. No client install required. No custom blocks.**
 
@@ -10,7 +10,7 @@ Player-placed containers behave exactly as in vanilla.
 
 ## Why server-side
 
-SlashLootr never touches block-state. The container stays a `minecraft:chest` (or barrel, shulker, minecart, etc.) forever, and every player gets their own copy entirely via server-side menu substitution. That means:
+SlashLoot never touches block-state. The container stays a `minecraft:chest` (or barrel, shulker, minecart, etc.) forever, and every player gets their own copy entirely via server-side menu substitution. That means:
 
 - **No client install.** Players connect with plain vanilla Fabric and never have to update when you do.
 - **Nothing else breaks.** Scoreboard selectors, datapack predicates, `/data` queries, structure saves, and other mods that scan for `minecraft:chest` keep seeing ordinary vanilla blocks.
@@ -20,7 +20,7 @@ Architecture deep-dive: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## Supported versions
 
 24 JARs — 13 Fabric, 11 NeoForge. Pick the one matching your server's Minecraft version **and
-loader**. Files are named `slashlootr-<version>+mc<band>-<loader>.jar`.
+loader**. Files are named `slashloot-<version>+mc<band>-<loader>.jar`.
 
 NeoForge coverage differs slightly from Fabric: NeoForge has no 1.20.1 or 1.20.5 line, and no stable
 builds for 21.6 / 21.7 / 21.9 — MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and
@@ -72,11 +72,11 @@ Two intercepts on the vanilla loot path:
 
 Per-player seed: `containerSeed XOR player.uuid.msb XOR rotL(player.uuid.lsb, 17)` — same player on same chest gives stable loot.
 
-Persistence lives at `world/<dimension>/data/slashlootr.dat`. Full sequence diagram, identity scheme, and per-band file map: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Persistence lives at `world/<dimension>/data/slashloot.dat`. Full sequence diagram, identity scheme, and per-band file map: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Configuration
 
-`config/slashlootr.json` (created on first launch):
+`config/slashloot.json` (created on first launch):
 
 ```json
 {
@@ -117,7 +117,7 @@ All require permission level 2 (op).
 | `/slashloot forget all`                 | Wipe every stored container in the current dimension                    |
 | `/slashloot prune`                      | Drop stored entries whose container no longer exists (loaded chunks)    |
 | `/slashloot stats`                      | Stored entry counts for the current dimension                           |
-| `/slashloot reload`                     | Re-read `config/slashlootr.json`                                        |
+| `/slashloot reload`                     | Re-read `config/slashloot.json`                                        |
 
 ## Known limitations
 

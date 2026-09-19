@@ -1,6 +1,23 @@
 # Changelog
 
-All notable changes to SlashLootr. Dates are YYYY-MM-DD.
+All notable changes to SlashLoot. Dates are YYYY-MM-DD.
+
+## 0.4.0 — 2026-09-19
+
+**The last traces of the old "SlashLootr" name are gone: everything is now `slashloot`.** Existing
+servers upgrade in place: your config and every player's stored loot carry over automatically.
+
+- **Mod id is now `slashloot`**, and JARs are named `slashloot-<version>+mc<band>-<loader>.jar`.
+  **Remove the old `slashlootr-*.jar` from your mods folder when you add this one.** Because the id
+  changed, a server with both files would load SlashLoot twice.
+- **Config file is now `config/slashloot.json`.** On first start, an existing `config/slashlootr.json`
+  is moved to the new name. If both files exist, the new one wins and the old one is left alone.
+- **Save file is now `slashloot.dat`.** On first use in each dimension, SlashLoot reads the old
+  `slashlootr.dat`, copies it over, and writes the new file at the next world save. The log shows a
+  `Migrated <dimension> per-player loot data` line when this happens. The old file is left on disk as
+  a backup and never read again; delete it once you're happy.
+- Nothing else changed. Loot, commands (`/slashloot`), config options and behaviour are identical to
+  0.3.3.
 
 ## 0.3.3 — 2026-09-19
 

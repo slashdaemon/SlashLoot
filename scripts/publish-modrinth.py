@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Publish SlashLootr per-band JARs to Modrinth.
+Publish SlashLoot per-band JARs to Modrinth.
 
 One JAR per (MC version band, loader). Each becomes one Modrinth version,
 tagged with its own loader. Simplified cousin of the StreamCraft per-platform-variant
@@ -8,13 +8,13 @@ flow — same .env loading, dry-run, project-ID resolution, idempotent re-runs.
 
 Usage:
     # Dry-run all bands to inspect metadata
-    python scripts/publish-modrinth.py --project slashlootr --version 0.1.0 --dry-run
+    python scripts/publish-modrinth.py --project slashloot --version 0.1.0 --dry-run
 
     # Publish all bands as a release
-    python scripts/publish-modrinth.py --project slashlootr --version 0.1.0
+    python scripts/publish-modrinth.py --project slashloot --version 0.1.0
 
     # Publish a subset as a beta
-    python scripts/publish-modrinth.py --project slashlootr --version 0.1.0 \\
+    python scripts/publish-modrinth.py --project slashloot --version 0.1.0 \\
         --bands 1.21.9 --type beta
 
 Auth via MODRINTH_TOKEN env var or .env file in the repo root. PAT scope:
@@ -111,9 +111,9 @@ LOADERS = ("fabric", "neoforge")
 
 
 def parse_filename(jar_path: Path) -> tuple[str, str, str]:
-    """Parse slashlootr-<ver>+mc<band>-<loader>.jar → (mod_version, mc_band, loader)."""
+    """Parse slashloot-<ver>+mc<band>-<loader>.jar → (mod_version, mc_band, loader)."""
     name = jar_path.stem
-    m = re.match(r"^slashlootr-([^+]+)\+mc([0-9.]+)-(fabric|neoforge)$", name)
+    m = re.match(r"^slashloot-([^+]+)\+mc([0-9.]+)-(fabric|neoforge)$", name)
     if not m:
         raise ValueError(f"Cannot parse filename: {jar_path.name}")
     return m.group(1), m.group(2), m.group(3)
@@ -122,7 +122,7 @@ def parse_filename(jar_path: Path) -> tuple[str, str, str]:
 def discover_jars(release_dir: Path, mod_version: str) -> dict[tuple[str, str], Path]:
     """Maps (mc_band, loader) → jar."""
     found: dict[tuple[str, str], Path] = {}
-    for jar in sorted(release_dir.glob(f"slashlootr-{mod_version}+mc*.jar")):
+    for jar in sorted(release_dir.glob(f"slashloot-{mod_version}+mc*.jar")):
         if jar.name.endswith("-sources.jar") or jar.name.endswith("-dev.jar"):
             continue
         try:

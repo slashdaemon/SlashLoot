@@ -80,13 +80,13 @@ processResources {
                 "minecraft_version": project.minecraft_version,
                 "java_version": javaVersion
     }
-    filesMatching("slashlootr.mixins.json") {
+    filesMatching("slashloot.mixins.json") {
         expand "mixin_compat": mixinCompat
     }
 }
 
 jar {
     from("${rootProject.projectDir}/LICENSE") {
-        rename { "${it}_slashlootr" }
+        rename { "${it}_slashloot" }
     }
 }

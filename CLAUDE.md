@@ -1,6 +1,6 @@
-# CLAUDE.md — SlashLootr
+# CLAUDE.md — SlashLoot
 
-Server-side per-player loot mod, published as **SlashLoot**. **Fabric + NeoForge.** **No custom blocks.** **No client install required.** Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
+Server-side per-player loot mod. **Fabric + NeoForge.** **No custom blocks.** **No client install required.** Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
 
 ## Why this exists
 
@@ -13,7 +13,13 @@ Lootr/myLoot achieve per-player chests by swapping vanilla blocks for custom `Lo
 
 Per-player seed: `XOR(containerSeed, player.uuid.msb, rotL(player.uuid.lsb, 17))` — deterministic, so re-opening shows what you left.
 
-Persistence: `world/<dim>/data/slashlootr.dat`. Two maps inside: `blocks` (keyed by packed `BlockPos`) and `entities` (keyed by entity UUID).
+Persistence: `world/<dim>/data/slashloot.dat`. Two maps inside: `blocks` (keyed by packed `BlockPos`) and `entities` (keyed by entity UUID).
+
+**`SlashLootCore.LEGACY_ID` (`"slashlootr"`) is not a leftover — do not rename it.** Releases up to
+0.3.3 used that id for the mod, `config/` file and save file. `SlashLootConfig#load` and
+`SlashLootState#get` use it to carry an existing server's config and stored loot over to the
+`slashloot` names. The save migration registers a *copy* under the new id; sharing the old object
+leaves the new file unwritten (see `docs/ARCHITECTURE.md` § A note on names).
 
 ### `core/Handling` is the single decision point
 
@@ -52,18 +58,18 @@ One shared source tree, composed per band. **There are no per-band copies of the
 a fix is written once.
 
 ```
-SlashLootr/
+SlashLoot/
 ├── common/                     SeedDeriver — plain Java, no MC types
 ├── mc-src/                     ALL shared mod logic, ONE copy (bands B–G)
-│   └── src/main/java/dev/blockacademy/slashlootr/
-│       ├── SlashLootrCore.java         boot(LoaderBridge)
+│   └── src/main/java/dev/blockacademy/slashloot/
+│       ├── SlashLootCore.java         boot(LoaderBridge)
 │       ├── loader/LoaderBridge.java    the ONLY Fabric/NeoForge seam
 │       ├── core/Handling.java          THE decision function (read this first)
 │       ├── core/LootContainerBase.java dirty tracking + open/close delegation
 │       ├── core/{ContainerKind,LootRoller,OpenSoundFx,DebugLog}.java
 │       ├── handler/{ContainerInteraction,EntityInteraction,Cleanup}Handler.java
 │       ├── command/SlashLootCommand.java
-│       ├── config/SlashLootrConfig.java
+│       ├── config/SlashLootConfig.java
 │       ├── store/PlayerLootEntry.java
 │       └── mixin/{MixinRandomizableContainer,MixinContainerEntity,MixinEntityRemoved}.java
 ├── compat/                     per-generation seams, a few dozen lines each
@@ -93,7 +99,7 @@ SlashLootr/
 
 `mc-src/` names no loader type. The single seam is `loader/LoaderBridge` — five hooks (use-block,
 use-entity, register-commands, block-break, server-tick) plus the config directory — which each
-loader entrypoint implements and hands to `SlashLootrCore.boot(...)`.
+loader entrypoint implements and hands to `SlashLootCore.boot(...)`.
 
 A band's whole build file is its variant list:
 
@@ -115,7 +121,7 @@ the same contract and the same reason strings, so the port is mechanical.
 ## Currently shipping
 
 24 JARs (13 Fabric + 11 NeoForge), all via `./gradlew buildAll`. Artifacts are
-`slashlootr-<ver>+mc<band>-<loader>.jar`.
+`slashloot-<ver>+mc<band>-<loader>.jar`.
 
 **NeoForge coverage differs from Fabric, for reasons outside our control:**
 
@@ -221,4 +227,4 @@ Repeat for: trapped chest, barrel, shulker box, chest minecart, double chest (bo
 
 ## Repository
 
-`slashdaemon/SlashLootr`. No `Co-Authored-By: Claude` trailer on commits. Not part of the TBA modpack — it is a server-side-only addon.
+`slashdaemon/SlashLoot`. No `Co-Authored-By: Claude` trailer on commits. Not part of the TBA modpack — it is a server-side-only addon.

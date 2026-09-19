@@ -43,6 +43,6 @@ processResources {
 
 jar {
     from("${rootProject.projectDir}/LICENSE") {
-        rename { "${it}_slashlootr" }
+        rename { "${it}_slashloot" }
     }
 }

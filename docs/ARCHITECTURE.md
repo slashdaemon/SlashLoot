@@ -1,6 +1,6 @@
-# SlashLootr Architecture
+# SlashLoot Architecture
 
-A technical deep-dive into how SlashLootr delivers per-player loot for naturally-generated containers **without** registering custom blocks and **without** requiring a client install. This document is the canonical reference for the mod's design, the vanilla code paths it hooks, and the compat seams that absorb Mojang's API drift between MC 1.20.1 and 26.1.
+A technical deep-dive into how SlashLoot delivers per-player loot for naturally-generated containers **without** registering custom blocks and **without** requiring a client install. This document is the canonical reference for the mod's design, the vanilla code paths it hooks, and the compat seams that absorb Mojang's API drift between MC 1.20.1 and 26.1.
 
 If you only want to use the mod, [`README.md`](../README.md) is enough. This document is for contributors and for the next person who has to add an MC version.
 
@@ -228,7 +228,7 @@ public static InteractionResult interact(
 @Mixin(RandomizableContainer.class)
 public interface MixinRandomizableContainer {
     @Inject(method = "unpackLootTable", at = @At("HEAD"), cancellable = true)
-    default void slashlootr$cancelVanillaRoll(Player player, CallbackInfo ci) {
+    default void slashloot$cancelVanillaRoll(Player player, CallbackInfo ci) {
         RandomizableContainer self = (RandomizableContainer) this;
         if (!(self instanceof BlockEntity be)) return;
         Level level = be.getLevel();
@@ -256,7 +256,7 @@ The entity-container equivalent (`MixinContainerEntity`) hooks `unpackChestVehic
 
 When the use-callback fires for a naturally-generated container:
 
-1. Look up the per-dimension `SlashLootrState` (the persistent store).
+1. Look up the per-dimension `SlashLootState` (the persistent store).
 2. Look up the `PlayerLootEntry` for this container's identity (block pos or entity UUID).
 3. Look up the `SimpleContainer` for this player's UUID.
 4. **If absent**: roll a fresh one via `LootTable#fill` using a player-derived seed, register a `ContainerListener` that marks the state dirty on any slot change, store it.
@@ -337,12 +337,12 @@ For chest minecarts and chest boats, `entity.getUUID()` is stable across chunk u
 
 ### Where it lives
 
-`world/<dimension>/data/slashlootr.dat` — one per dimension, lazily created on first use, accessed via `ServerLevel#getDataStorage().computeIfAbsent(...)`.
+`world/<dimension>/data/slashloot.dat` — one per dimension, lazily created on first use, accessed via `ServerLevel#getDataStorage().computeIfAbsent(...)`.
 
 ### Schema (Bands A–D: NBT-based)
 
 ```
-SlashLootrState (CompoundTag)
+SlashLootState (CompoundTag)
 ├── blocks: ListTag<CompoundTag>
 │   └── { pos: long, players: ListTag<CompoundTag> {
 │             uuid: UUID, size: int, items: ListTag (SimpleContainer.createTag) } }
@@ -351,7 +351,7 @@ SlashLootrState (CompoundTag)
               uuid: UUID, size: int, items: ListTag (SimpleContainer.createTag) } }
 ```
 
-Implementation: `compat/store-nbt/.../store/SlashLootrState.java`, shared by Bands B–D. Band A carries its own copy that drops the `HolderLookup.Provider` arguments (1.20.1 predates them).
+Implementation: `compat/store-nbt/.../store/SlashLootState.java`, shared by Bands B–D. Band A carries its own copy that drops the `HolderLookup.Provider` arguments (1.20.1 predates them).
 
 ### Schema (Bands E–G: Codec-based)
 
@@ -369,12 +369,12 @@ record PlayerSlots(UUID player, int size, List<SlotItem> items) { ... }
 record BlockEntryRec(long pos, List<PlayerSlots> players) { ... }
 record EntityEntryRec(UUID uuid, List<PlayerSlots> players) { ... }
 
-public static final Codec<SlashLootrState> CODEC = RecordCodecBuilder.create(i -> i.group(
-    BlockEntryRec.CODEC.listOf().fieldOf("blocks").forGetter(SlashLootrState::serializeBlocks),
-    EntityEntryRec.CODEC.listOf().fieldOf("entities").forGetter(SlashLootrState::serializeEntities)
-).apply(i, SlashLootrState::deserialize));
+public static final Codec<SlashLootState> CODEC = RecordCodecBuilder.create(i -> i.group(
+    BlockEntryRec.CODEC.listOf().fieldOf("blocks").forGetter(SlashLootState::serializeBlocks),
+    EntityEntryRec.CODEC.listOf().fieldOf("entities").forGetter(SlashLootState::serializeEntities)
+).apply(i, SlashLootState::deserialize));
 
-public static final SavedDataType<SlashLootrState> TYPE = StateType.create(CODEC);
+public static final SavedDataType<SlashLootState> TYPE = StateType.create(CODEC);
 ```
 
 `StateType` is the one line that differs again at 26.1, where `SavedDataType`'s first argument
@@ -406,7 +406,7 @@ Mojang's `SavedData` framework persists dirty saved data on world save (every ~1
 
 ## 7. Configuration & admin commands
 
-### `config/slashlootr.json`
+### `config/slashloot.json`
 
 Created on first launch with defaults. Re-readable at runtime with `/slashloot reload`; missing keys
 take their defaults, so a file written by an older version keeps working.
@@ -469,7 +469,7 @@ All require permission level 2 (op).
 | `/slashloot forget all` | Wipe every stored container in this dimension |
 | `/slashloot prune` | Run a full sweep now; reports removed and skipped-because-unloaded counts |
 | `/slashloot stats` | Stored block/entity/player-copy counts for this dimension |
-| `/slashloot reload` | Re-read `config/slashlootr.json` |
+| `/slashloot reload` | Re-read `config/slashloot.json` |
 
 
 ---
@@ -481,13 +481,13 @@ build file names only the compat variants it needs. This replaced nine full per-
 in 0.2.0 - a fix used to cost nine edits, and drifted between bands in practice.
 
 ```
-SlashLootr/
+SlashLoot/
 |- build.gradle                Root: Loom plugin, fabricBands list, buildAll, build26
 |- gradle/fabric-band.gradle   Composes a band JAR from the shared tree + its variants
 |- common/                     SeedDeriver - plain Java, no MC types
 |- mc-src/                     ALL shared mod logic, ONE copy
-|   `- src/main/java/dev/blockacademy/slashlootr/
-|       |- SlashLootrCore.java         boot(LoaderBridge) - loader-agnostic entrypoint
+|   `- src/main/java/dev/blockacademy/slashloot/
+|       |- SlashLootCore.java         boot(LoaderBridge) - loader-agnostic entrypoint
 |       |- loader/LoaderBridge.java    the ONLY Fabric/NeoForge seam
 |       |- core/Handling.java          THE decision function (section 3)
 |       |- core/LootContainerBase.java dirty tracking + open/close delegation
@@ -499,7 +499,7 @@ SlashLootr/
 |       |- handler/EntityInteractionHandler.java
 |       |- handler/CleanupHandler.java  break hook + background prune
 |       |- command/SlashLootCommand.java
-|       |- config/SlashLootrConfig.java
+|       |- config/SlashLootConfig.java
 |       |- store/PlayerLootEntry.java
 |       `- mixin/{MixinRandomizableContainer,MixinContainerEntity,MixinEntityRemoved}.java
 |- compat/                     per-generation seams - a few dozen lines each
@@ -518,12 +518,19 @@ ext.slashloot = [ids: "location", vehicle: "legacy", store: "nbt", open: "player
 apply from: "${rootDir}/gradle/fabric-band.gradle"
 ```
 
-### A note on the package name
+### A note on names
 
-Through 0.1.x every band used the package `dev.blockacademy.slashlootr.v1_21_1`, a leftover from
-when 1.21.1 was the only band. 0.2.0 dropped the suffix: everything is `dev.blockacademy.slashlootr`.
-The mod id, `config/slashlootr.json`, and `world/<dim>/data/slashlootr.dat` were deliberately left
-alone - the save data holds no class names, so existing worlds carry over untouched.
+The mod id, package (`dev.blockacademy.slashloot`), config file (`config/slashloot.json`) and save
+file (`world/<dim>/data/slashloot.dat`) all use `slashloot`. Releases up to 0.3.3 used an older id
+for the mod, the config file and the save file; `SlashLootCore.LEGACY_ID` holds it and is used for
+nothing but migration:
+
+- `SlashLootConfig#load` moves an old config file to the new name if no new one exists.
+- `SlashLootState#get` reads the old save file when no new one exists, registers that data under
+  the new id and marks it dirty, so the next world save writes the new file. The old file is left
+  on disk and never read again once the new one exists.
+
+The save data holds no class names, so the package rename needs no migration of its own.
 
 ---
 
@@ -579,7 +586,7 @@ legacy Fabric-only version. Its `Handling` keeps the same contract and the same 
 shared one, so porting a change is mechanical.
 ## 10. Comparison vs. Lootr / myLoot / LootrPlugin
 
-| Aspect                              | Lootr                          | myLoot                         | LootrPlugin (Paper)        | **SlashLootr** |
+| Aspect                              | Lootr                          | myLoot                         | LootrPlugin (Paper)        | **SlashLoot** |
 | ----------------------------------- | ------------------------------ | ------------------------------ | -------------------------- | --------------- |
 | Loader                              | Fabric, NeoForge, Forge        | Fabric                         | Paper plugin               | Fabric          |
 | Required on clients                 | Yes                            | Yes                            | No                         | **No**          |
@@ -592,7 +599,7 @@ shared one, so porting a change is mechanical.
 | Decorated pots / suspicious blocks  | ✓                              | ✗                              | ?                          | ✗               |
 | MC versions covered                 | 1.12, 1.16–1.21.x              | 1.18–1.20.x                    | 1.18–26.1.x                | **1.20.1, 1.20.5–26.1.x** |
 
-The one trade-off SlashLootr accepts in exchange for vanilla compatibility:
+The one trade-off SlashLoot accepts in exchange for vanilla compatibility:
 
 1. **No looted-state visual.** Adding it would require a companion client mod, undermining the "vanilla clients" benefit.
 

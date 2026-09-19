@@ -44,7 +44,7 @@ That's it. Clients connect with an unmodified game — nothing to install on the
 
 ## Supported versions
 
-24 JARs — 13 Fabric, 11 NeoForge. Pick the one matching your server's Minecraft version **and loader** — files are named `slashlootr-<version>+mc<band>-<loader>.jar`. Fabric builds need Fabric API at the listed version; NeoForge builds need nothing beyond NeoForge.
+24 JARs — 13 Fabric, 11 NeoForge. Pick the one matching your server's Minecraft version **and loader** — files are named `slashloot-<version>+mc<band>-<loader>.jar`. Fabric builds need Fabric API at the listed version; NeoForge builds need nothing beyond NeoForge.
 
 NeoForge coverage differs slightly: NeoForge has no 1.20.1 or 1.20.5 line, and no stable 21.6 / 21.7 / 21.9 builds, so MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and 21.10 builds. The 26.1.2, 26.2 and 26.3 bands ship for both loaders. The 26.3 NeoForge build is published as **beta** because NeoForge 26.3 itself has no stable release yet.
 
@@ -71,7 +71,7 @@ NeoForge coverage differs slightly: NeoForge has no 1.20.1 or 1.20.5 line, and n
 
 ## Configuration
 
-A `config/slashlootr.json` file is created on first launch:
+A `config/slashloot.json` file is created on first launch:
 
 ```json
 {
@@ -112,7 +112,7 @@ All require permission level 2 (op).
 | `/slashloot forget all`                 | Wipe every stored container in the current dimension               |
 | `/slashloot prune`                      | Drop stored entries whose container no longer exists               |
 | `/slashloot stats`                      | Stored entry counts for the current dimension                      |
-| `/slashloot reload`                     | Re-read `config/slashlootr.json`                                   |
+| `/slashloot reload`                     | Re-read `config/slashloot.json`                                   |
 
 ## Known limitations
 
@@ -123,5 +123,5 @@ All require permission level 2 (op).
 
 ## Source & links
 
-- **GitHub** (source, issues, architecture deep-dive): https://github.com/slashdaemon/SlashLootr
+- **GitHub** (source, issues, architecture deep-dive): https://github.com/slashdaemon/SlashLoot
 - **License**: CC-BY-4.0

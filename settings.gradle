@@ -7,7 +7,7 @@ pluginManagement {
     }
 }
 
-rootProject.name = "slashlootr"
+rootProject.name = "slashloot"
 
 // Shared source lives in plain directories, not Gradle projects: mc-src/, compat/*, loader-*/ and
 // common/ are composed into each band via srcDirs by gradle/fabric-band.gradle. Only the bands

@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "dev.blockacademy.slashloot.mixin",
+  "compatibilityLevel": "${mixin_compat}",
+  "mixins": [
+    "MixinRandomizableContainer",
+    "MixinContainerEntity",
+    "MixinEntityRemoved",
+    "AccessorShulkerBoxBlock"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
