@@ -99,7 +99,7 @@ If we **cancel** `unpackLootTable` server-side:
 
 ### Entity containers
 
-The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. All of them implement `ContainerEntity` (interface), on every band including 1.20.1, and roll through its default method `ContainerEntity#unpackChestVehicleLootTable(Player)`. On 1.20.1 `ChestBoat#unpackLootTable` only delegates to it, and `AbstractMinecartContainer` has no `unpackLootTable` of its own, so a hook on either class misses minecarts (0.2.0–0.3.3 shipped exactly that, and the 1.20.1 JAR failed at startup).
+The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. All of them implement `ContainerEntity` (interface), on every band including 1.20.1, and roll through its default method `ContainerEntity#unpackChestVehicleLootTable(Player)`. On 1.20.1 `ChestBoat#unpackLootTable` only delegates to it, and `AbstractMinecartContainer` has no `unpackLootTable` of its own, so a hook on either class misses minecarts (0.2.0–0.3.3 shipped exactly that, and the 1.20.1 JAR failed at startup). What does work on a class is merging an *override* of the interface method into it, which is how the Forge 1.20.1 band hooks them (see Band A below).
 
 ---
 
@@ -506,6 +506,7 @@ SlashLoot/
 |- loader-fabric/              FabricBridge + entrypoint + fabric.mod.json + mixins.json
 `- versions/
     |- 1.20.1-fabric/          Band A - self-contained fork (see below)
+    |- 1.20.1-forge/           Band A on Forge - Band A sources + ForgeBridge (legacyforge)
     |- <band>-fabric/          build.gradle + gradle.properties ONLY
     `- 26.1.2/                 Band G - quarantined composite (own wrapper, JDK 25)
 ```
@@ -571,24 +572,29 @@ the quarantine.
 ### Band A - MC 1.20.1 (the deliberate fork)
 
 `versions/1.20.1-fabric/` keeps its own full copy of the sources, and is the one place a fix must be
-ported by hand. 1.20.1:
+ported by hand. Those sources are loader-neutral behind their own `loader/LoaderBridge`, and
+`versions/1.20.1-forge/` compiles them for MinecraftForge (MDG legacyforge) with a `ForgeBridge` in
+place of `loader/fabric/`, so one port covers both loaders. 1.20.1:
 
 - has **no `RandomizableContainer` interface** - the mixin targets `RandomizableContainerBlockEntity`
-- **does** have `ContainerEntity`, so entity containers use the same `MixinContainerEntity` hook on
-  `unpackChestVehicleLootTable` as the shared tree
+- **does** have `ContainerEntity`, so on Fabric entity containers use the same `MixinContainerEntity`
+  hook on `unpackChestVehicleLootTable` as the shared tree. Forge 1.20.1 bundles upstream Mixin 0.8.5,
+  which cannot inject into an interface, so the Forge band instead merges an override of that default
+  method into `AbstractMinecartContainer` and `ChestBoat` (`MixinMinecartUnpack`,
+  `MixinChestBoatUnpack`). Every loot path reaches the roll through that interface call.
 - stores loot tables as **`ResourceLocation`**, not `ResourceKey<LootTable>`
 - keeps those fields **private**, so reads go through `@Accessor` mixins
 - resolves tables via `MinecraftServer#getLootData()` rather than `reloadableRegistries()`
 - uses the three-arg `SavedData.computeIfAbsent` and a `save(CompoundTag)` with no `HolderLookup`
 
 Sharing it would mean threading an opaque loot-reference abstraction through every band to serve one
-legacy Fabric-only version. Its `Handling` keeps the same contract and the same reason strings as the
+legacy version. Its `Handling` keeps the same contract and the same reason strings as the
 shared one, so porting a change is mechanical.
 ## 10. Comparison vs. Lootr / myLoot / LootrPlugin
 
 | Aspect                              | Lootr                          | myLoot                         | LootrPlugin (Paper)        | **SlashLoot** |
 | ----------------------------------- | ------------------------------ | ------------------------------ | -------------------------- | --------------- |
-| Loader                              | Fabric, NeoForge, Forge        | Fabric                         | Paper plugin               | Fabric          |
+| Loader                              | Fabric, NeoForge, Forge        | Fabric                         | Paper plugin               | Fabric, NeoForge, Forge 1.20.1 |
 | Required on clients                 | Yes                            | Yes                            | No                         | **No**          |
 | Touches vanilla block-state         | Yes (`LootrChestBlock` swap)   | Yes (`MyLootChestBlock` swap)  | No                         | **No**          |
 | Vanilla `/data` / selectors work    | No (it's a different block)    | No                             | Yes                        | **Yes**         |
@@ -646,17 +652,13 @@ means they run the same code, but their compat variants are exercised only by th
 
 In rough order of effort vs. value:
 
-1. **NeoForge builds.** The `LoaderBridge` seam exists and everything below it is loader-neutral;
-   what remains is a `NeoForgeBridge` mapping the five hooks onto `NeoForge.EVENT_BUS`, a
-   `neoforge.mods.toml`, and per-band ModDevGradle build files. NeoForge is Mojang-mapped, so the
-   mixins apply unchanged.
-2. **Two-player client verification on the remaining bands.** Band C is verified end-to-end; the
+1. **Two-player client verification on the remaining bands.** Band C is verified end-to-end; the
    others share its source but their compat variants are only compiler-checked.
-3. **Comparator output** mixin for instanced containers, returning a sensible per-player value.
-4. **Decorated pots / suspicious sand & gravel** — separate mixin hooks on the brushing path.
-5. **Companion client mod** for the looted-state visual indicator. Optional install; server keeps working with vanilla clients.
-6. **Loot decay / re-roll**: optional config knob to clear a player's personal copy after N MC days, prompting a re-roll on next open.
-7. **Per-player seed strategy** as a config option (deterministic vs. true-random-per-open).
+2. **Comparator output** mixin for instanced containers, returning a sensible per-player value.
+3. **Decorated pots / suspicious sand & gravel** — separate mixin hooks on the brushing path.
+4. **Companion client mod** for the looted-state visual indicator. Optional install; server keeps working with vanilla clients.
+5. **Loot decay / re-roll**: optional config knob to clear a player's personal copy after N MC days, prompting a re-roll on next open.
+6. **Per-player seed strategy** as a config option (deterministic vs. true-random-per-open).
 
 ---
 

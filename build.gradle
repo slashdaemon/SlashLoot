@@ -106,7 +106,10 @@ tasks.register("buildAll") {
 
         def collect = { File libsDir ->
             libsDir.listFiles()?.each { jar ->
-                if (jar.name.endsWith(".jar") && !jar.name.contains("-dev") && !jar.name.contains("-sources")) {
+                // Only this version's jars: build/libs keeps every earlier version's output too, and
+                // an old jar must never ride into a release.
+                if (jar.name.endsWith(".jar") && jar.name.contains("-${project.mod_version}+")
+                        && !jar.name.contains("-dev") && !jar.name.contains("-sources")) {
                     def dest = new File(releaseDir, jar.name)
                     if (dest.exists()) dest.delete()
                     java.nio.file.Files.copy(jar.toPath(), dest.toPath())

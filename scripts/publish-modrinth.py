@@ -80,6 +80,8 @@ BAND_GAME_VERSIONS = {
     ("26.1.2",  "neoforge"): ["26.1.2"],
     ("26.2",    "neoforge"): ["26.2"],
     ("26.3",    "neoforge"): ["26.3"],
+    # MinecraftForge: 1.20.1 only. Built against Forge 47.1.3, so the same file runs on NeoForge 1.20.1.
+    ("1.20.1",  "forge"):    ["1.20.1"],
 }
 
 
@@ -107,13 +109,18 @@ FABRIC_DEPENDENCIES = [
     {"project_id": "P7dR8mSH", "dependency_type": "required"},  # fabric-api
 ]
 
-LOADERS = ("fabric", "neoforge")
+LOADERS = ("fabric", "neoforge", "forge")
+
+# Modrinth loader tags per JAR loader. The Forge 1.20.1 jar is built against Forge 47.1.3, which
+# NeoForge's 1.20.1 line (net.neoforged:forge:1.20.1-47.1.x) is a superset of, so the one file is
+# tagged for both loaders (the convention Jade and Embeddium use).
+LOADER_TAGS = {"forge": ["forge", "neoforge"]}
 
 
 def parse_filename(jar_path: Path) -> tuple[str, str, str]:
     """Parse slashloot-<ver>+mc<band>-<loader>.jar → (mod_version, mc_band, loader)."""
     name = jar_path.stem
-    m = re.match(r"^slashloot-([^+]+)\+mc([0-9.]+)-(fabric|neoforge)$", name)
+    m = re.match(r"^slashloot-([^+]+)\+mc([0-9.]+)-(fabric|neoforge|forge)$", name)
     if not m:
         raise ValueError(f"Cannot parse filename: {jar_path.name}")
     return m.group(1), m.group(2), m.group(3)
@@ -221,7 +228,7 @@ def upload_version(
         "dependencies": FABRIC_DEPENDENCIES if loader == "fabric" else [],
         "game_versions": game_versions,
         "version_type": version_type,
-        "loaders": [loader],
+        "loaders": LOADER_TAGS.get(loader, [loader]),
         "featured": False,
         "project_id": project_id,
         "file_parts": [jar.name],
@@ -276,7 +283,7 @@ def main() -> int:
     p.add_argument("--release-dir", default="build/release", help="Directory containing JARs")
     p.add_argument("--changelog-file", default="CHANGELOG.md", help="Path to changelog file")
     p.add_argument("--bands", help="Comma-separated MC bands to upload (default: all discovered)")
-    p.add_argument("--loaders", help="Comma-separated loaders to upload: fabric,neoforge (default: all discovered)")
+    p.add_argument("--loaders", help="Comma-separated loaders to upload: fabric,neoforge,forge (default: all discovered)")
     p.add_argument("--dry-run", action="store_true", help="Print metadata without uploading")
     args = p.parse_args()
 

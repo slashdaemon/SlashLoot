@@ -1,6 +1,6 @@
 # SlashLoot
 
-Server-side per-player loot for naturally-generated containers in Minecraft. **Fabric and NeoForge. No client install required. No custom blocks.**
+Server-side per-player loot for naturally-generated containers in Minecraft. **Fabric, NeoForge, and Forge 1.20.1. No client install required. No custom blocks.**
 
 ## What it does
 
@@ -19,10 +19,13 @@ Architecture deep-dive: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Supported versions
 
-24 JARs — 13 Fabric, 11 NeoForge. Pick the one matching your server's Minecraft version **and
-loader**. Files are named `slashloot-<version>+mc<band>-<loader>.jar`.
+25 JARs — 13 Fabric, 11 NeoForge, 1 Forge. Pick the one matching your server's Minecraft version
+**and loader**. Files are named `slashloot-<version>+mc<band>-<loader>.jar`.
 
-NeoForge coverage differs slightly from Fabric: NeoForge has no 1.20.1 or 1.20.5 line, and no stable
+**Forge is 1.20.1 only**, the modpack LTS line. The same `-forge` JAR also runs on NeoForge 1.20.1
+(NeoForge's 1.20.1 line is Forge 47.1.3 underneath), so 1.20.1 NeoForge servers use it too.
+
+NeoForge coverage differs slightly from Fabric: NeoForge has no 1.20.5 line of its own, and no stable
 builds for 21.6 / 21.7 / 21.9 — MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and
 21.10 builds instead.
 
@@ -33,6 +36,7 @@ ships 26.x unobfuscated. NeoForge 26.3 is still beta-only, so that JAR is publis
 | Minecraft | Loader | Fabric API (Fabric only) |
 | --------- | ------ | ------------------------ |
 | 1.20.1 | Fabric | 0.92.2+1.20.1 |
+| 1.20.1 | Forge (also runs on NeoForge 1.20.1) | — |
 | 1.20.5–1.20.6 | Fabric | 0.97.8+1.20.5 |
 | 1.20.6 | NeoForge | — |
 | 1.21 | Fabric | 0.102.0+1.21 |

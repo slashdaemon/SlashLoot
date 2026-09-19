@@ -1,6 +1,6 @@
 # CLAUDE.md — SlashLoot
 
-Server-side per-player loot mod. **Fabric + NeoForge.** **No custom blocks.** **No client install required.** Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
+Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required.** Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
 
 ## Why this exists
 
@@ -42,7 +42,7 @@ Java 21 for the 1.20.x–1.21.x bands (Java 17 target for Band A). Bands G, J an
 ```bash
 export JAVA_HOME="/c/Users/slash/AppData/Roaming/PrismLauncher/java/java-runtime-delta"
 export PATH="$JAVA_HOME/bin:$PATH"
-./gradlew buildAll                        # all 24 band/loader JARs → build/release/
+./gradlew buildAll                        # all 25 band/loader JARs → build/release/
 ./gradlew :versions:1.21.1-fabric:build   # single Fabric band
 ./gradlew :versions:1.21.1-neoforge:build # single NeoForge band
 ./gradlew build26                         # quarantined Band G (26.1.x, both loaders)
@@ -91,6 +91,7 @@ SlashLoot/
 ├── gradle/neoforge-band.gradle same, for NeoForge
 └── versions/
     ├── 1.20.1-fabric/          Band A — SELF-CONTAINED FORK (see below)
+    ├── 1.20.1-forge/           Band A on Forge: Band A sources + ForgeBridge, mods.toml (legacyforge)
     ├── <band>-<loader>/        build.gradle + gradle.properties only
     ├── 26.1.2/                 Band G — quarantined composite, band-fabric + band-neoforge
     ├── 26.2/                   Band J — same shape, forked from 26.1.2
@@ -111,22 +112,41 @@ apply from: "${rootDir}/gradle/fabric-band.gradle"
 
 ### Band A is deliberately a fork
 
-`versions/1.20.1-fabric/` keeps its own full copy of the sources. MC 1.20.1 predates the
-`RandomizableContainer` interface (it *does* have `ContainerEntity`, and Band A hooks it exactly like
-`mc-src`), stores loot tables as `ResourceLocation`
+`versions/1.20.1-fabric/` keeps its own full copy of the sources, loader-neutral behind its own
+`loader/LoaderBridge` (a copy of `mc-src`'s): only `loader/fabric/` names a Fabric type.
+`versions/1.20.1-forge/` compiles that same tree minus `loader/fabric/`, plus a `ForgeBridge` and
+`@Mod` entrypoint, via MDG **legacyforge**. So a Band A fix lands on both loaders at once.
+
+MC 1.20.1 predates the `RandomizableContainer` interface, stores loot tables as `ResourceLocation`
 rather than `ResourceKey<LootTable>`, and keeps those fields private (hence the `@Accessor` mixins).
+It *does* have `ContainerEntity`: on Fabric Band A hooks it exactly like `mc-src`; on Forge, whose
+Mixin can't inject into an interface, it uses per-class overrides instead (see Currently shipping).
 Sharing it would mean an opaque loot-reference abstraction across every band to serve one legacy
-Fabric-only version. **Changes to `mc-src` must be ported to Band A by hand** — its `Handling` keeps
+version. **Changes to `mc-src` must be ported to Band A by hand** — its `Handling` keeps
 the same contract and the same reason strings, so the port is mechanical.
 
 ## Currently shipping
 
-24 JARs (13 Fabric + 11 NeoForge), all via `./gradlew buildAll`. Artifacts are
-`slashloot-<ver>+mc<band>-<loader>.jar`.
+25 JARs (13 Fabric + 11 NeoForge + 1 Forge), all via `./gradlew buildAll`. Artifacts are
+`slashloot-<ver>+mc<band>-<loader>.jar`. **Bumping the version means four files**: root
+`gradle.properties` and the three quarantined `versions/26.*/gradle.properties`.
+
+**Forge 1.20.1 (`versions/1.20.1-forge/`), things that only bite on Forge:**
+
+- Built against **Forge 47.1.3** on purpose, so the one jar also loads on NeoForge 1.20.1 (Forge 47.1.3
+  plus additions). Publish scripts tag it `forge` + `neoforge`. Don't use post-47.1.3 API (e.g. the
+  `FMLJavaModLoadingContext` constructor parameter) or that claim breaks.
+- Forge bundles **upstream Mixin 0.8.5: no injectors in interfaces.** Band A's `MixinContainerEntity`
+  is excluded there; `MixinMinecartUnpack` / `MixinChestBoatUnpack` merge an override of the
+  `ContainerEntity` default instead.
+- Production is **SRG-named**: the shipped jar is `reobfJar` output (build/libs), which needs the
+  Mixin AP refmap and the `MixinConfigs` manifest attribute. Dev runs are Mojang-named and cannot
+  catch a refmap break. `python scripts/smoke.py --prod forge --prod neoforge-1.20.1` runs the
+  shipped jar on real installer-built servers.
 
 **NeoForge coverage differs from Fabric, for reasons outside our control:**
 
-- NeoForge has no 1.20.1 outside the legacy MDG plugin, and no 1.20.5 line, so it starts at 1.20.6.
+- NeoForge has no 1.20.5 line, so its own bands start at 1.20.6; NeoForge 1.20.1 runs the Forge jar.
 - NeoForge 21.6, 21.7 and 21.9 have **no stable builds at all** — every published `21.6.x` /
   `21.9.x` is a `-beta` (checked against `maven.neoforged.net`). MC 1.21.6–1.21.8 ride the 21.8
   build, and 1.21.9–1.21.10 ride the 21.10 build.
@@ -138,6 +158,7 @@ the same contract and the same reason strings, so the port is mechanical.
 | Band dir | Loader | MC covered | ids | vehicle | store | savedtype | open |
 | -------- | ------ | ---------- | --- | ------- | ----- | --------- | ---- |
 | 1.20.1-fabric | F | 1.20.1 | *(fork — Java 17)* | | | | |
+| 1.20.1-forge | Forge | 1.20.1 (+ NeoForge 1.20.1) | *(Band A fork — Java 17)* | | | | |
 | 1.20.5-fabric | F | 1.20.5–1.20.6 | location | legacy | nbt | — | player |
 | 1.20.6-neoforge | N | 1.20.6 | location | legacy | nbt | — | player |
 | 1.21-fabric | F | 1.21 | location | legacy | nbt | — | player |
@@ -182,7 +203,7 @@ widely-circulated matrices claim stable NeoForge exists for 21.6 / 21.9; it does
 
 ## Verification
 
-**Build gate:** `./gradlew buildAll` must collect 24 JARs into `build/release/`.
+**Build gate:** `./gradlew buildAll` must collect 25 JARs into `build/release/`.
 
 **Smoke gate:** `python scripts/smoke.py --all --migration` must pass every band (about an hour).
 It boots each band's `runServer` in a throwaway `smoke-world`, fails on any Mixin/loader/SlashLoot

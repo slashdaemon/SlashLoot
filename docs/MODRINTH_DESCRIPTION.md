@@ -6,7 +6,7 @@ Every player who opens a naturally-generated container gets their own personal c
 
 Containers you place yourself are never touched — chests, barrels, and shulker boxes you build behave exactly like vanilla.
 
-**Fabric and NeoForge.**
+**Fabric, NeoForge, and Forge 1.20.1.**
 
 ## Server-side only — players install nothing
 
@@ -37,20 +37,23 @@ SlashLoot runs entirely on the server. Players connect with plain vanilla Fabric
 ## Installation
 
 1. Drop the JAR matching your Minecraft version **and loader** into your server's `mods/` folder.
-2. On Fabric, drop the matching Fabric API version into the same folder. NeoForge needs nothing extra.
+2. On Fabric, drop the matching Fabric API version into the same folder. NeoForge and Forge need nothing extra.
 3. Restart the server.
 
 That's it. Clients connect with an unmodified game — nothing to install on their end.
 
 ## Supported versions
 
-24 JARs — 13 Fabric, 11 NeoForge. Pick the one matching your server's Minecraft version **and loader** — files are named `slashloot-<version>+mc<band>-<loader>.jar`. Fabric builds need Fabric API at the listed version; NeoForge builds need nothing beyond NeoForge.
+25 JARs — 13 Fabric, 11 NeoForge, 1 Forge. Pick the one matching your server's Minecraft version **and loader** — files are named `slashloot-<version>+mc<band>-<loader>.jar`. Fabric builds need Fabric API at the listed version; NeoForge and Forge builds need nothing beyond the loader.
 
-NeoForge coverage differs slightly: NeoForge has no 1.20.1 or 1.20.5 line, and no stable 21.6 / 21.7 / 21.9 builds, so MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and 21.10 builds. The 26.1.2, 26.2 and 26.3 bands ship for both loaders. The 26.3 NeoForge build is published as **beta** because NeoForge 26.3 itself has no stable release yet.
+**Forge is 1.20.1 only.** The same `-forge` JAR also runs on NeoForge 1.20.1, so 1.20.1 NeoForge servers use it too.
+
+NeoForge coverage differs slightly: NeoForge has no 1.20.5 line of its own, and no stable 21.6 / 21.7 / 21.9 builds, so MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and 21.10 builds. The 26.1.2, 26.2 and 26.3 bands ship for both loaders. The 26.3 NeoForge build is published as **beta** because NeoForge 26.3 itself has no stable release yet.
 
 | Minecraft | Loader | Fabric API (Fabric only) |
 | --------- | ------ | ------------------------ |
 | 1.20.1 | Fabric | 0.92.2+1.20.1 |
+| 1.20.1 | Forge (also runs on NeoForge 1.20.1) | — |
 | 1.20.5–1.20.6 | Fabric | 0.97.8+1.20.5 |
 | 1.20.6 | NeoForge | — |
 | 1.21 | Fabric | 0.102.0+1.21 |

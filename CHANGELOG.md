@@ -2,6 +2,16 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
+## 0.5.0 — 2026-09-19
+
+- **New: Forge 1.20.1.** A new `slashloot-0.5.0+mc1.20.1-forge.jar` for MinecraftForge 1.20.1 (Forge 47
+  or later). Like every other build it is server-side only: players connect with an unmodified game.
+- **The same Forge file also runs on NeoForge 1.20.1**, so 1.20.1 NeoForge servers can use SlashLoot
+  for the first time.
+- Everything behaves exactly as on Fabric: the same per-player loot, config file, commands, and save
+  format.
+- Nothing changed on the other 24 files; they are rebuilt at 0.5.0 unchanged from 0.4.0.
+
 ## 0.4.0 — 2026-09-19
 
 - **Fixed: Minecraft 1.20.1 servers crashed at startup.** Every 1.20.1 build since 0.2.0 carried a
