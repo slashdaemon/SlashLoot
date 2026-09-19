@@ -4,9 +4,12 @@ All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
 ## 0.4.0 — 2026-09-19
 
-**The last traces of the old "SlashLootr" name are gone: everything is now `slashloot`.** Existing
-servers upgrade in place: your config and every player's stored loot carry over automatically.
-
+- **Fixed: Minecraft 1.20.1 servers crashed at startup.** Every 1.20.1 build since 0.2.0 carried a
+  chest-minecart hook aimed at a method 1.20.1 doesn't have, and Fabric refused to load it. 1.20.1 now
+  uses the same hook as every other version. Sorry to anyone who hit this.
+- **New: Minecraft 26.3**, on Fabric (needs Fabric API 0.161.0+26.3) and NeoForge. The NeoForge 26.3
+  build is marked beta because NeoForge 26.3 itself has no stable release yet; SlashLoot runs correctly
+  on it. (This was prepared as 0.3.3, which was never published.)
 - **Mod id is now `slashloot`**, and JARs are named `slashloot-<version>+mc<band>-<loader>.jar`.
   **Remove the old `slashlootr-*.jar` from your mods folder when you add this one.** Because the id
   changed, a server with both files would load SlashLoot twice.
@@ -16,11 +19,8 @@ servers upgrade in place: your config and every player's stored loot carry over 
   `slashlootr.dat`, copies it over, and writes the new file at the next world save. The log shows a
   `Migrated <dimension> per-player loot data` line when this happens. The old file is left on disk as
   a backup and never read again; delete it once you're happy.
-- **Fixed: Minecraft 1.20.1 servers crashed at startup.** Every 1.20.1 build since 0.2.0 carried a
-  chest-minecart hook aimed at a method 1.20.1 doesn't have, and Fabric refused to load it. 1.20.1 now
-  uses the same hook as every other version.
-- Nothing else changed. Loot, commands (`/slashloot`), config options and behaviour are identical to
-  0.3.3.
+- Nothing else changed. Loot, commands (`/slashloot`), config options and behaviour are the same as
+  0.3.2.
 
 ## 0.3.3 — 2026-09-19
 
