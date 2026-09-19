@@ -5,7 +5,6 @@ import dev.blockacademy.slashloot.core.LootContainer;
 import dev.blockacademy.slashloot.core.LootRoller;
 import dev.blockacademy.slashloot.store.PlayerLootEntry;
 import dev.blockacademy.slashloot.store.SlashLootState;
-import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -13,10 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.ChestBoat;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.EntityHitResult;
 
 /**
  * Band A copy of the container-entity handler. MC 1.20.1 has no shared {@code ContainerEntity}
@@ -26,22 +22,20 @@ import net.minecraft.world.phys.EntityHitResult;
  * <p>No animation delegation: minecarts and chest boats have no {@code startOpen} override to
  * forward to.
  */
-public class EntityInteractionHandler implements UseEntityCallback {
+public final class EntityInteractionHandler {
 
-    @Override
-    public InteractionResult interact(Player player, Level world, InteractionHand hand, Entity entity,
-            EntityHitResult hit) {
-        if (world.isClientSide()) return InteractionResult.PASS;
-        if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
-        if (player.isSpectator()) return InteractionResult.PASS;
+    private EntityInteractionHandler() {}
 
-        ServerLevel level = (ServerLevel) world;
+    /** {@code LoaderBridge.UseEntityHook}: the bridge has already filtered to a server player on a server level. */
+    public static InteractionResult interact(ServerPlayer sp, ServerLevel level, InteractionHand hand, Entity entity) {
+        if (sp.isSpectator()) return InteractionResult.PASS;
+
         Handling.Decision decision = Handling.forEntity(level, entity);
         Handling.logEntity(level, entity, decision);
         if (!decision.instanced()) return InteractionResult.PASS;
 
         // Sneaking on a chest boat is "mount", not "open" — leave it to vanilla.
-        if (entity instanceof ChestBoat && player.isSecondaryUseActive()) return InteractionResult.PASS;
+        if (entity instanceof ChestBoat && sp.isSecondaryUseActive()) return InteractionResult.PASS;
 
         SlashLootState store = SlashLootState.get(level);
         PlayerLootEntry entry = store.entityEntry(entity.getUUID());

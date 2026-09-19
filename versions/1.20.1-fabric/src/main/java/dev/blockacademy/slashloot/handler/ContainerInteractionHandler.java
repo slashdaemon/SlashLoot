@@ -9,7 +9,6 @@ import dev.blockacademy.slashloot.core.OpenSoundFx;
 import dev.blockacademy.slashloot.mixin.AccessorShulkerBoxBlock;
 import dev.blockacademy.slashloot.store.PlayerLootEntry;
 import dev.blockacademy.slashloot.store.SlashLootState;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -22,8 +21,6 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.monster.piglin.PiglinAi;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -41,16 +38,15 @@ import net.minecraft.world.phys.BlockHitResult;
  * the loot-cancelling mixin makes, so the two can never disagree and strand a player with an empty
  * chest.
  */
-public class ContainerInteractionHandler implements UseBlockCallback {
+public final class ContainerInteractionHandler {
 
-    @Override
-    public InteractionResult interact(Player player, Level world, InteractionHand hand, BlockHitResult hit) {
-        if (world.isClientSide()) return InteractionResult.PASS;
-        if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
-        if (player.isSpectator()) return InteractionResult.PASS;
-        if (player.isShiftKeyDown() && !player.getMainHandItem().isEmpty()) return InteractionResult.PASS;
+    private ContainerInteractionHandler() {}
 
-        ServerLevel level = (ServerLevel) world;
+    /** {@code LoaderBridge.UseBlockHook}: the bridge has already filtered to a server player on a server level. */
+    public static InteractionResult interact(ServerPlayer sp, ServerLevel level, InteractionHand hand, BlockHitResult hit) {
+        if (sp.isSpectator()) return InteractionResult.PASS;
+        if (sp.isShiftKeyDown() && !sp.getMainHandItem().isEmpty()) return InteractionResult.PASS;
+
         BlockPos pos = hit.getBlockPos();
         BlockEntity be = level.getBlockEntity(pos);
 

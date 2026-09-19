@@ -36,8 +36,7 @@ public final class SlashLootCommand {
 
     private SlashLootCommand() {}
 
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext ctx,
-            net.minecraft.commands.Commands.CommandSelection env) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext ctx) {
         dispatcher.register(Commands.literal("slashloot")
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("forget")

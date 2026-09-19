@@ -2,12 +2,11 @@ package dev.blockacademy.slashloot.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.blockacademy.slashloot.SlashLootMod;
+import dev.blockacademy.slashloot.SlashLootCore;
 import dev.blockacademy.slashloot.core.DebugLog;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -73,10 +72,9 @@ public final class SlashLootConfig {
         return INSTANCE;
     }
 
-    public static void load() {
-        Path configDir = FabricLoader.getInstance().getConfigDir();
+    public static void load(Path configDir) {
         path = configDir.resolve("slashloot.json");
-        adoptLegacyFile(configDir.resolve(SlashLootMod.LEGACY_ID + ".json"));
+        adoptLegacyFile(configDir.resolve(SlashLootCore.LEGACY_ID + ".json"));
         reload();
     }
 
@@ -92,7 +90,7 @@ public final class SlashLootConfig {
                 Files.writeString(path, GSON.toJson(INSTANCE));
             }
         } catch (IOException | RuntimeException e) {
-            SlashLootMod.LOG.warn("Failed to load slashloot.json, using defaults", e);
+            SlashLootCore.LOG.warn("Failed to load slashloot.json, using defaults", e);
             INSTANCE = new SlashLootConfig();
         }
         DebugLog.reset();
@@ -103,9 +101,9 @@ public final class SlashLootConfig {
         if (Files.exists(path) || !Files.exists(legacy)) return;
         try {
             Files.move(legacy, path);
-            SlashLootMod.LOG.info("Moved config/{} to config/slashloot.json", legacy.getFileName());
+            SlashLootCore.LOG.info("Moved config/{} to config/slashloot.json", legacy.getFileName());
         } catch (IOException e) {
-            SlashLootMod.LOG.warn("Could not move config/" + legacy.getFileName() + " to slashloot.json", e);
+            SlashLootCore.LOG.warn("Could not move config/" + legacy.getFileName() + " to slashloot.json", e);
         }
     }
 

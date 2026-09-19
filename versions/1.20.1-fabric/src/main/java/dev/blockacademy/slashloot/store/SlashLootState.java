@@ -1,6 +1,6 @@
 package dev.blockacademy.slashloot.store;
 
-import dev.blockacademy.slashloot.SlashLootMod;
+import dev.blockacademy.slashloot.SlashLootCore;
 import dev.blockacademy.slashloot.core.Handling;
 import dev.blockacademy.slashloot.core.LootContainer;
 import net.minecraft.nbt.CompoundTag;
@@ -36,16 +36,16 @@ public class SlashLootState extends SavedData {
      */
     public static SlashLootState get(ServerLevel level) {
         var storage = level.getDataStorage();
-        SlashLootState state = storage.get(SlashLootState::load, SlashLootMod.MOD_ID);
+        SlashLootState state = storage.get(SlashLootState::load, SlashLootCore.MOD_ID);
         if (state != null) return state;
-        SlashLootState legacy = storage.get(SlashLootState::load, SlashLootMod.LEGACY_ID);
+        SlashLootState legacy = storage.get(SlashLootState::load, SlashLootCore.LEGACY_ID);
         if (legacy == null) {
-            return storage.computeIfAbsent(SlashLootState::load, SlashLootState::new, SlashLootMod.MOD_ID);
+            return storage.computeIfAbsent(SlashLootState::load, SlashLootState::new, SlashLootCore.MOD_ID);
         }
         SlashLootState copy = load(legacy.save(new CompoundTag()));
-        storage.set(SlashLootMod.MOD_ID, copy);
+        storage.set(SlashLootCore.MOD_ID, copy);
         copy.setDirty();
-        SlashLootMod.LOG.info("Migrated {} per-player loot data from the pre-rename save file",
+        SlashLootCore.LOG.info("Migrated {} per-player loot data from the pre-rename save file",
                 Handling.dimension(level));
         return copy;
     }

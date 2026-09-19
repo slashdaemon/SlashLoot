@@ -1,6 +1,6 @@
 package dev.blockacademy.slashloot.core;
 
-import dev.blockacademy.slashloot.SlashLootMod;
+import dev.blockacademy.slashloot.SlashLootCore;
 import dev.blockacademy.slashloot.config.SlashLootConfig;
 
 import java.util.LinkedHashMap;
@@ -46,13 +46,13 @@ public final class DebugLog {
             String previous = LAST_VERDICT.put(key, line);
             if (line.equals(previous)) return;
         }
-        SlashLootMod.LOG.info("{}", line);
+        SlashLootCore.LOG.info("{}", line);
     }
 
     /** Unconditional info line for admin-triggered actions (prune, forget) — not deduped. */
     public static void action(String line) {
         if (!enabled()) return;
-        SlashLootMod.LOG.info("{}", line);
+        SlashLootCore.LOG.info("{}", line);
     }
 
     /** Drops remembered verdicts so a config reload re-logs everything. */

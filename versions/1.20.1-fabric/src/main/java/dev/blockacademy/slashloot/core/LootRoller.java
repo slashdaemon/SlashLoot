@@ -1,6 +1,6 @@
 package dev.blockacademy.slashloot.core;
 
-import dev.blockacademy.slashloot.SlashLootMod;
+import dev.blockacademy.slashloot.SlashLootCore;
 import dev.blockacademy.slashloot.common.SeedDeriver;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
@@ -56,7 +56,7 @@ public final class LootRoller {
 
         LootTable table = level.getServer().getLootData().getLootTable(tableId);
         if (table == LootTable.EMPTY) {
-            SlashLootMod.LOG.warn("Loot table {} not found for {} - serving empty inventory", tableId, what);
+            SlashLootCore.LOG.warn("Loot table {} not found for {} - serving empty inventory", tableId, what);
             return container;
         }
         LootParams params = new LootParams.Builder(level)

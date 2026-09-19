@@ -4,8 +4,11 @@
 // (the mixin has to target RandomizableContainerBlockEntity directly), loot tables are plain
 // ResourceLocation rather than ResourceKey<LootTable>, and the loot-table fields are private so
 // they need @Accessor mixins. Abstracting that away would cost every other band a generic
-// loot-reference type to serve one legacy Fabric-only version, so this band keeps its own copy of
-// the sources and the same fixes are applied here by hand.
+// loot-reference type to serve one legacy version, so this band keeps its own copy of the sources
+// and the same fixes are applied here by hand.
+//
+// Those sources are loader-neutral behind loader/LoaderBridge; only loader/fabric/ is Fabric.
+// versions/1.20.1-forge compiles the same tree minus loader/fabric/ plus its own Forge bridge.
 plugins {
     id "fabric-loom"
 }
