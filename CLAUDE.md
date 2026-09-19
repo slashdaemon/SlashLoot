@@ -31,16 +31,17 @@ side-effect free and must never force-load a chunk.
 
 ## Build
 
-Java 21 for the 1.20.x–1.21.x bands (Java 17 target for Band A). Bands G and J (26.x) need JDK 25 via their own wrappers.
+Java 21 for the 1.20.x–1.21.x bands (Java 17 target for Band A). Bands G, J and K (26.x) need JDK 25 via their own wrappers.
 
 ```bash
 export JAVA_HOME="/c/Users/slash/AppData/Roaming/PrismLauncher/java/java-runtime-delta"
 export PATH="$JAVA_HOME/bin:$PATH"
-./gradlew buildAll                        # all 22 band/loader JARs → build/release/
+./gradlew buildAll                        # all 24 band/loader JARs → build/release/
 ./gradlew :versions:1.21.1-fabric:build   # single Fabric band
 ./gradlew :versions:1.21.1-neoforge:build # single NeoForge band
 ./gradlew build26                         # quarantined Band G (26.1.x, both loaders)
 ./gradlew build262                        # quarantined Band J (26.2.x, both loaders)
+./gradlew build263                        # quarantined Band K (26.3.x, both loaders)
 ```
 
 Verify Prism's JDK still aliases as `java-runtime-delta` (Prism rotates these — check `ls ~/AppData/Roaming/PrismLauncher/java/` if Gradle complains about the toolchain).
@@ -86,7 +87,8 @@ SlashLootr/
     ├── 1.20.1-fabric/          Band A — SELF-CONTAINED FORK (see below)
     ├── <band>-<loader>/        build.gradle + gradle.properties only
     ├── 26.1.2/                 Band G — quarantined composite, band-fabric + band-neoforge
-    └── 26.2/                   Band J — same shape, forked from 26.1.2
+    ├── 26.2/                   Band J — same shape, forked from 26.1.2
+    └── 26.3/                   Band K — same shape, forked from 26.2 (Gradle 9.6, Loom 1.17)
 ```
 
 `mc-src/` names no loader type. The single seam is `loader/LoaderBridge` — five hooks (use-block,
@@ -112,7 +114,7 @@ the same contract and the same reason strings, so the port is mechanical.
 
 ## Currently shipping
 
-22 JARs (12 Fabric + 10 NeoForge), all via `./gradlew buildAll`. Artifacts are
+24 JARs (13 Fabric + 11 NeoForge), all via `./gradlew buildAll`. Artifacts are
 `slashlootr-<ver>+mc<band>-<loader>.jar`.
 
 **NeoForge coverage differs from Fabric, for reasons outside our control:**
@@ -121,6 +123,8 @@ the same contract and the same reason strings, so the port is mechanical.
 - NeoForge 21.6, 21.7 and 21.9 have **no stable builds at all** — every published `21.6.x` /
   `21.9.x` is a `-beta` (checked against `maven.neoforged.net`). MC 1.21.6–1.21.8 ride the 21.8
   build, and 1.21.9–1.21.10 ride the 21.10 build.
+- **NeoForge 26.3 is beta-only** (`26.3.0.x-beta`). The publish scripts force that JAR to `beta`
+  through `BETA_ONLY_BANDS`; drop the entry and re-pin once a stable 26.3 build lands.
 - **1.21.5 is its own band on both loaders.** `SavedData.Factory` was removed at 1.21.5, not 1.21.6
   — the 1.21.4 JAR cannot run there, though 0.1.x advertised it for exactly that.
 
@@ -143,6 +147,7 @@ the same contract and the same reason strings, so the port is mechanical.
 | 1.21.11-fabric / -neoforge | F+N | 1.21.11 | identifier | moved | codec | string | containeruser |
 | 26.1.2 (both) | F+N | 26.1.2 | identifier | moved | codec | id | containeruser |
 | 26.2 (both) | F+N | 26.2 | identifier | moved | codec | id | containeruser |
+| 26.3 (both) | F+N | 26.3 | identifier | moved | codec | id | containeruser |
 
 Where each split lands: `getContainerLootTable` at **1.21.2**; `SavedDataType`+`Codec` at
 **1.21.5**; `startOpen(ContainerUser)` at **1.21.9**; `Identifier` + vehicle package move at
@@ -170,7 +175,7 @@ widely-circulated matrices claim stable NeoForge exists for 21.6 / 21.9; it does
 
 ## Verification
 
-**Build gate:** `./gradlew buildAll` must collect 22 JARs into `build/release/`.
+**Build gate:** `./gradlew buildAll` must collect 24 JARs into `build/release/`.
 
 **Headless functional pass** (no client needed — a hopper under a container triggers
 `unpackLootTable`, which is the exact path the mixins hook). Boot a bare Fabric server with the
@@ -186,6 +191,10 @@ data get block <p>          # instanced: LootTable tag SURVIVES, hopper stays em
 Cover: chest (instanced), chest with its table in `lootTableBlocklist` (must fall back to vanilla),
 `minecraft:hopper` with a loot table (unsupported container — must fall back to vanilla), barrel,
 chest minecart. Set `debugLogging: true` and check each verdict line reads correctly.
+
+**Use non-default ports.** LocalServer is often running and holds 25565 / 25575; a test server on
+the defaults fails to bind, and an RCON client on 25575 talks to LocalServer instead. Set
+`server-port` / `rcon.port` (e.g. 25590 / 25591) in the test server's `server.properties`.
 
 On NeoForge the same sweep runs through ModDevGradle's generated server, which needs no separate
 install — `./gradlew :versions:1.21.1-neoforge:runServer`, with `run/eula.txt` and

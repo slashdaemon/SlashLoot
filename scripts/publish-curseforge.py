@@ -87,6 +87,7 @@ BAND_GAME_VERSIONS = {
     ("1.21.11", "fabric"):   ["1.21.11"],
     ("26.1.2",  "fabric"):   ["26.1.2"],
     ("26.2",    "fabric"):   ["26.2"],
+    ("26.3",    "fabric"):   ["26.3"],
 
     ("1.20.6",  "neoforge"): ["1.20.6"],
     ("1.21.1",  "neoforge"): ["1.21", "1.21.1"],
@@ -98,12 +99,27 @@ BAND_GAME_VERSIONS = {
     ("1.21.11", "neoforge"): ["1.21.11"],
     ("26.1.2",  "neoforge"): ["26.1.2"],
     ("26.2",    "neoforge"): ["26.2"],
+    ("26.3",    "neoforge"): ["26.3"],
 }
 
 
 def game_versions_for(band: str, loader: str) -> list[str]:
     """MC versions a given (band, loader) JAR is advertised for."""
     return BAND_GAME_VERSIONS.get((band, loader), [band])
+
+
+# (band, loader) pairs built on a beta loader. These always publish as `beta`, whatever --type says,
+# so a stable release never advertises a JAR whose loader can still break underneath it.
+BETA_ONLY_BANDS = {
+    ("26.3", "neoforge"),  # NeoForge 26.3 has no stable build yet (26.3.0.x-beta)
+}
+
+
+def release_type_for(band: str, loader: str, requested: str) -> str:
+    """--type, downgraded to `beta` for bands whose loader is itself beta-only."""
+    if (band, loader) in BETA_ONLY_BANDS and requested == "release":
+        return "beta"
+    return requested
 
 # Per-band Java version. Band A (1.20.1) needs JDK 17; 1.20.5–1.21.11 use JDK 21.
 # Band G (26.1.2) compiles with JDK 25 but we tag "Java 21" since CF doesn't yet
@@ -449,7 +465,7 @@ def main() -> int:
                 loader=loader,
                 jar=jar,
                 game_version_ids=game_version_ids,
-                release_type=args.type,
+                release_type=release_type_for(band, loader, args.type),
                 changelog=changelog,
                 changelog_type=changelog_type,
                 token=token,

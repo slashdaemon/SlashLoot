@@ -38,5 +38,6 @@ include "versions:1.21.8-neoforge"  // Band E NeoForge: MC 1.21.6-1.21.8 (NF 21.
 include "versions:1.21.10-neoforge" // Band E NeoForge: MC 1.21.9-1.21.10 (NF 21.9 is BETA-ONLY; built on 21.10)
 include "versions:1.21.11-neoforge" // Band F NeoForge: MC 1.21.11       (NF 21.11.x)
 
-// Band G (MC 26.1.x) is a quarantined composite under versions/26.1.2/ with its own Gradle 9.4
-// wrapper, Loom 1.15.5 and JDK 25. The root build shells out to it via the build26 task.
+// Bands G, J and K (MC 26.1.x / 26.2.x / 26.3.x) are quarantined composites under versions/26.1.2/,
+// versions/26.2/ and versions/26.3/, each with its own Gradle wrapper, Loom and JDK 25. The root
+// build shells out to them via the build26 / build262 / build263 tasks.

@@ -2,6 +2,24 @@
 
 All notable changes to SlashLootr. Dates are YYYY-MM-DD.
 
+## 0.3.3 — 2026-09-19
+
+**Minecraft 26.3 support, on Fabric and NeoForge.** No gameplay changes — this release exists to
+mark 26.3 support.
+
+- **New files:** `slashlootr-0.3.3+mc26.3-fabric.jar` (needs Fabric API 0.161.0+26.3) and
+  `slashlootr-0.3.3+mc26.3-neoforge.jar`. Every other band is rebuilt unchanged at 0.3.3; 24 JARs
+  in all (13 Fabric + 11 NeoForge).
+- **The NeoForge 26.3 build is marked beta**, because NeoForge 26.3 itself has no stable release
+  yet. SlashLoot runs correctly on it; the tag reflects the loader, and it moves to release once a
+  stable NeoForge 26.3 lands.
+- Nothing in SlashLoot needed changing: 26.3 kept every vanilla code path SlashLoot hooks. Chests,
+  trapped chests, barrels and chest minecarts are instanced per player as before; blocklisted loot
+  tables and unsupported containers still fall back to vanilla.
+- For builders: 26.3 is a new quarantined composite under `versions/26.3/` (Gradle 9.6.1, Loom
+  1.17.21, JDK 25), built by `./gradlew build263` and included in `buildAll`. The publish scripts
+  force the NeoForge 26.3 JAR to `beta` via `BETA_ONLY_BANDS`.
+
 ## 0.3.2 — 2026-09-09
 
 **Cobblemon's Gilded Chests are now real per-player containers.** Reported issue: Cobblemon's

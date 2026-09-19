@@ -1,0 +1,18 @@
+pluginManagement {
+    repositories {
+        maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+        maven { name = 'NeoForged'; url = 'https://maven.neoforged.net/releases' }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+plugins {
+    // Lets Gradle auto-provision JDK 25 from Foojay if not already installed.
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'slashlootr-263'
+
+include 'band-fabric'
+include 'band-neoforge'

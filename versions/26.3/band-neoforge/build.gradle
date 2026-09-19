@@ -1,0 +1,49 @@
+// Band K NeoForge - MC 26.3.x.
+plugins {
+    id "net.neoforged.moddev"
+}
+
+base {
+    archivesName = "${project.archives_base_name}-${project.mod_version}+mc${project.minecraft_version}-neoforge"
+}
+
+neoForge {
+    version = project.neoforge_version
+
+    runs {
+        server { server() }
+    }
+
+    mods {
+        slashlootr {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sharedSourceDirs.each { rel -> sourceSets.main.java.srcDirs += new File(repoRoot, rel) }
+sourceSets.main.java.srcDirs += new File(repoRoot, "loader-neoforge/src/main/java")
+// 26.1+ replaced BlockEvent.BreakEvent with event.level.block.BreakBlockEvent.
+sourceSets.main.java.srcDirs += new File(repoRoot, "loader-neoforge/variants/break-breakblockevent")
+sourceSets.main.resources.srcDirs += new File(repoRoot, "mc-src/src/main/resources")
+sourceSets.main.resources.srcDirs += new File(repoRoot, "loader-neoforge/src/main/resources")
+
+processResources {
+    inputs.property "version", project.mod_version
+    inputs.property "neoforge_range", project.neoforge_range
+    inputs.property "minecraft_range", project.minecraft_range
+    inputs.property "mixin_compat", project.mixin_compat
+
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand "version": project.mod_version,
+                "neoforge_range": project.neoforge_range,
+                "minecraft_range": project.minecraft_range
+    }
+    filesMatching("slashlootr.mixins.json") {
+        expand "mixin_compat": project.mixin_compat
+    }
+}
+
+jar {
+    from("${repoRoot}/LICENSE") { rename { "${it}_slashlootr" } }
+}

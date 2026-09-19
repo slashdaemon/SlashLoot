@@ -48,6 +48,7 @@ def quarantinedBand = { String taskName, String dir, String desc ->
 
 quarantinedBand("build26", "26.1.2", "Builds Band G (MC 26.1.x, both loaders) via its own quarantined wrapper.")
 quarantinedBand("build262", "26.2", "Builds Band J (MC 26.2.x, both loaders) via its own quarantined wrapper.")
+quarantinedBand("build263", "26.3", "Builds Band K (MC 26.3.x, both loaders) via its own quarantined wrapper.")
 
 // Bands built inside this composite. Band G is appended from the quarantine below.
 def fabricBands = [
@@ -86,6 +87,7 @@ tasks.register("buildAll") {
     neoforgeBands.each { dependsOn ":versions:${it}:build" }
     dependsOn "build26"                  // Band G: MC 26.1.x (quarantined, both loaders)
     dependsOn "build262"                 // Band J: MC 26.2.x (quarantined, both loaders)
+    dependsOn "build263"                 // Band K: MC 26.3.x (quarantined, both loaders; NeoForge beta)
 
     doLast {
         def releaseDir = layout.buildDirectory.dir("release").get().asFile
@@ -105,8 +107,8 @@ tasks.register("buildAll") {
         (fabricBands + neoforgeBands).each { band ->
             collect(project(":versions:${band}").layout.buildDirectory.dir("libs").get().asFile)
         }
-        // Bands G and J live outside the composite; one subproject per loader each.
-        ["26.1.2", "26.2"].each { dir ->
+        // Bands G, J and K live outside the composite; one subproject per loader each.
+        ["26.1.2", "26.2", "26.3"].each { dir ->
             collect(file("versions/${dir}/band-fabric/build/libs"))
             collect(file("versions/${dir}/band-neoforge/build/libs"))
         }

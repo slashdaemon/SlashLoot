@@ -1,0 +1,40 @@
+// Band K Fabric - MC 26.3.x. Unobfuscated, so no mappings are declared.
+plugins {
+    id "net.fabricmc.fabric-loom"
+}
+
+base {
+    archivesName = "${project.archives_base_name}-${project.mod_version}+mc${project.minecraft_version}-fabric"
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    // No mappings — 26.1 ships unobfuscated.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+sharedSourceDirs.each { rel -> sourceSets.main.java.srcDirs += new File(repoRoot, rel) }
+sourceSets.main.java.srcDirs += new File(repoRoot, "loader-fabric/src/main/java")
+sourceSets.main.resources.srcDirs += new File(repoRoot, "mc-src/src/main/resources")
+sourceSets.main.resources.srcDirs += new File(repoRoot, "loader-fabric/src/main/resources")
+
+processResources {
+    inputs.property "version", project.mod_version
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "java_version", project.java_version
+    inputs.property "mixin_compat", project.mixin_compat
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.mod_version,
+                "minecraft_version": project.minecraft_version,
+                "java_version": project.java_version
+    }
+    filesMatching("slashlootr.mixins.json") {
+        expand "mixin_compat": project.mixin_compat
+    }
+}
+
+jar {
+    from("${repoRoot}/LICENSE") { rename { "${it}_slashlootr" } }
+}

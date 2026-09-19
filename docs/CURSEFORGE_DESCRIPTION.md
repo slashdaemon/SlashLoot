@@ -43,9 +43,9 @@ That's it. Clients connect with vanilla Fabric or NeoForge — nothing to instal
 
 ## Supported versions
 
-22 JARs — 12 Fabric, 10 NeoForge — pick the one that matches your server's Minecraft version and loader.
+24 JARs — 13 Fabric, 11 NeoForge — pick the one that matches your server's Minecraft version and loader.
 
-NeoForge coverage differs slightly: no 1.20.1 or 1.20.5 line, and no stable 21.6 / 21.7 / 21.9 builds, so MC 1.21.6-1.21.8 and 1.21.9-1.21.10 are covered by the 21.8 and 21.10 builds. The 26.1.2 and 26.2 bands ship for both loaders.
+NeoForge coverage differs slightly: no 1.20.1 or 1.20.5 line, and no stable 21.6 / 21.7 / 21.9 builds, so MC 1.21.6-1.21.8 and 1.21.9-1.21.10 are covered by the 21.8 and 21.10 builds. The 26.1.2, 26.2 and 26.3 bands ship for both loaders. The 26.3 NeoForge build is published as **beta** because NeoForge 26.3 itself has no stable release yet.
 
 | Minecraft | Fabric API |
 |---|---|
@@ -61,6 +61,7 @@ NeoForge coverage differs slightly: no 1.20.1 or 1.20.5 line, and no stable 21.6
 | 1.21.11 | 0.141.2+1.21.11 |
 | 26.1.2 | 0.146.1+26.1.2 |
 | 26.2 | 0.158.0+26.2 |
+| 26.3 | 0.161.0+26.3 |
 
 ## Configuration
 

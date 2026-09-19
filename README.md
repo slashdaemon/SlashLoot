@@ -19,15 +19,16 @@ Architecture deep-dive: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Supported versions
 
-22 JARs — 12 Fabric, 10 NeoForge. Pick the one matching your server's Minecraft version **and
+24 JARs — 13 Fabric, 11 NeoForge. Pick the one matching your server's Minecraft version **and
 loader**. Files are named `slashlootr-<version>+mc<band>-<loader>.jar`.
 
 NeoForge coverage differs slightly from Fabric: NeoForge has no 1.20.1 or 1.20.5 line, and no stable
 builds for 21.6 / 21.7 / 21.9 — MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and
 21.10 builds instead.
 
-The 26.1 and 26.2 bands are quarantined builds: their own Gradle 9.4 wrapper, JDK 25, and Loom
-1.15.5, because Mojang ships 26.x unobfuscated.
+The 26.1, 26.2 and 26.3 bands are quarantined builds with their own Gradle wrapper, JDK 25, and
+Loom (Gradle 9.4 + Loom 1.15.5 for 26.1/26.2, Gradle 9.6 + Loom 1.17.21 for 26.3), because Mojang
+ships 26.x unobfuscated. NeoForge 26.3 is still beta-only, so that JAR is published as beta.
 
 | Minecraft | Loader | Fabric API (Fabric only) |
 | --------- | ------ | ------------------------ |
@@ -48,6 +49,7 @@ The 26.1 and 26.2 bands are quarantined builds: their own Gradle 9.4 wrapper, JD
 | 1.21.11 | Fabric / NeoForge | 0.141.2+1.21.11 |
 | 26.1.2 | Fabric / NeoForge | 0.146.1+26.1.2 |
 | 26.2 | Fabric / NeoForge | 0.158.0+26.2 |
+| 26.3 | Fabric / NeoForge (beta) | 0.161.0+26.3 |
 
 Fabric builds need Fabric API at the listed version. NeoForge builds need nothing beyond NeoForge itself.
 
