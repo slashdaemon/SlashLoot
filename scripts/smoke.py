@@ -14,9 +14,15 @@ crash report, then places the standard hopper fixtures over RCON and checks each
 --migration adds a second boot: the config and save are swapped for their pre-0.4.0 `slashlootr`
 names and the band must move them over (`Moved config`, `Migrated`, new save file on disk).
 
+--prod runs the same checks against the SHIPPED jar on a real server built by the loader's official
+installer (build/smoke/prod-<target>/). Dev runs are Mojang-named; Forge production is SRG-named, so
+a broken refmap or reobf only shows up here. Targets: `forge` (Forge 1.20.1) and `neoforge-1.20.1`
+(the same jar on NeoForge's 1.20.1 line).
+
 Usage:
     python scripts/smoke.py --all
     python scripts/smoke.py --band 1.20.1-fabric --band 26.3-neoforge --migration
+    python scripts/smoke.py --prod forge --prod neoforge-1.20.1
 
 Band names are the composite projects (`1.21.1-fabric`) or `<26.x dir>-<loader>` (`26.3-fabric`).
 Uses JAVA_HOME if set, else Prism's java-runtime-delta (JDK 21); the 26.x wrappers fetch JDK 25
@@ -37,6 +43,7 @@ import struct
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -106,6 +113,33 @@ def legacy_save_path(band, world):
     if ver in QUARANTINED:
         return world / "dimensions" / "minecraft" / "overworld" / "data" / "slashlootr" / "slashlootr.dat"
     return world / "data" / "slashlootr.dat"
+
+
+# Production servers for --prod: (installer URL, launch-args file the installer writes, band whose
+# shipped jar goes in mods/). Server runtime is JDK 17, vanilla 1.20.1's own Java.
+PROD_TARGETS = {
+    "forge": dict(
+        installer="https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.23/"
+                  "forge-1.20.1-47.4.23-installer.jar",
+        args_dir="libraries/net/minecraftforge/forge/1.20.1-47.4.23",
+        band="1.20.1-forge"),
+    "neoforge-1.20.1": dict(
+        installer="https://maven.neoforged.net/releases/net/neoforged/forge/1.20.1-47.1.106/"
+                  "forge-1.20.1-47.1.106-installer.jar",
+        args_dir="libraries/net/neoforged/forge/1.20.1-47.1.106",
+        band="1.20.1-forge"),
+}
+
+
+def shipped_jar(band):
+    """Newest shipped jar for a band: build/release first, else the band's build/libs (reobf output)."""
+    ver, loader = band.rsplit("-", 1)
+    pattern = f"slashloot-*+mc{ver}-{loader}.jar"
+    found = [p for d in (ROOT / "build" / "release", ROOT / "versions" / band / "build" / "libs")
+             for p in d.glob(pattern) if not p.name.endswith("-sources.jar")]
+    if not found:
+        raise RuntimeError(f"no built jar for {band}; run ./gradlew buildAll first")
+    return max(found, key=lambda p: p.stat().st_mtime)
 
 
 # --------------------------------------------------------------------------- NBT (just enough)
@@ -298,6 +332,45 @@ class Server:
         self.out.close()
 
 
+class ProdServer(Server):
+    """A real installer-built server running the shipped jar, instead of a Gradle dev run."""
+
+    def __init__(self, name, java_home, out_dir, jar):
+        target = PROD_TARGETS[name]
+        self.band = target["band"]
+        self.run = self.cwd = out_dir / f"prod-{name}"
+        self.log = self.run / "logs" / "latest.log"
+        self.out_path = out_dir / f"smoke-prod-{name}.server.log"
+        java = str(Path(java_home) / "bin" / ("java.exe" if IS_WINDOWS else "java"))
+        args_file = f"{target['args_dir']}/{'win' if IS_WINDOWS else 'unix'}_args.txt"
+        self.cmd = [java, "@user_jvm_args.txt", f"@{args_file}", "nogui"]
+        self.env = dict(os.environ, JAVA_HOME=java_home)
+        self.proc = None
+        self.out = None
+        self.started_at = 0.0
+        self._install(target, java, args_file, jar)
+        crash_dir = self.run / "crash-reports"
+        self.crashes_before = set(crash_dir.glob("*")) if crash_dir.exists() else set()
+
+    def _install(self, target, java, args_file, jar):
+        if not (self.run / args_file).exists():
+            self.run.mkdir(parents=True, exist_ok=True)
+            installer = self.run.parent / Path(target["installer"]).name
+            if not installer.exists():
+                print(f"   downloading {installer.name}", flush=True)
+                req = urllib.request.Request(target["installer"], headers={"User-Agent": "slashdaemon/SlashLoot smoke"})
+                with urllib.request.urlopen(req, timeout=120) as resp:  # Forge's maven 403s the default UA
+                    installer.write_bytes(resp.read())
+            print(f"   installing server into {self.run.relative_to(ROOT)}", flush=True)
+            subprocess.run([java, "-jar", str(installer), "--installServer", str(self.run)],
+                           cwd=self.run, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        mods = self.run / "mods"
+        mods.mkdir(exist_ok=True)
+        for old in mods.glob("slashloot*.jar"):
+            old.unlink()
+        shutil.copy2(jar, mods / jar.name)
+
+
 ERROR_RE = re.compile(r"(/ERROR\]|\[ERROR\]|/FATAL\]).*(mixin|slashloot|fabricloader|neoforge|modloading)"
                       r"|(mixin|slashloot).*(/ERROR\]|\[ERROR\])", re.I)
 
@@ -373,9 +446,9 @@ def check_migration(server, rcon):
 
 # --------------------------------------------------------------------------- driver
 
-def boot(band, java_home, out_dir, fresh, body):
+def boot(make_server, fresh, body):
     """Boot one server, run `body(server, rcon)` -> checks, always stop. Returns a list of checks."""
-    server = Server(band, java_home, out_dir)
+    server = make_server()
     checks = []
     try:
         if fresh:
@@ -404,13 +477,23 @@ def boot(band, java_home, out_dir, fresh, body):
     return checks, server
 
 
-def run_band(band, java_home, out_dir, migration):
-    checks, server = boot(band, java_home, out_dir, True, check_fixtures)
+def run_checks(make_server, migration):
+    checks, server = boot(make_server, True, check_fixtures)
     if migration and all(ok for _, ok, _ in checks):
         seed_legacy(server)
-        more, _ = boot(band, java_home, out_dir, False, check_migration)
+        more, _ = boot(make_server, False, check_migration)
         checks += [(f"migration: {n}", ok, why) for n, ok, why in more]
     return checks
+
+
+def run_band(band, java_home, out_dir, migration):
+    return run_checks(lambda: Server(band, java_home, out_dir), migration)
+
+
+def run_prod(name, java_home, out_dir, migration):
+    jar = shipped_jar(PROD_TARGETS[name]["band"])
+    print(f"   jar: {jar.relative_to(ROOT)}", flush=True)
+    return run_checks(lambda: ProdServer(name, java_home, out_dir, jar), migration)
 
 
 def main():
@@ -419,6 +502,10 @@ def main():
     ap.add_argument("--band", action="append", default=[], help="band to test (repeatable)")
     ap.add_argument("--all", action="store_true", help="test every band")
     ap.add_argument("--migration", action="store_true", help="also test the slashlootr -> slashloot migration")
+    ap.add_argument("--prod", action="append", default=[], choices=sorted(PROD_TARGETS),
+                    help="test the shipped jar on a real installer-built server (repeatable)")
+    ap.add_argument("--prod-java-home", default=str(Path.home() / "AppData/Roaming/PrismLauncher/java/java-runtime-gamma"),
+                    help="JDK for --prod servers (default: Prism's JDK 17)")
     ap.add_argument("--port", type=int, default=PORT, help="server port; RCON uses port + 1")
     ap.add_argument("--java-home", default=os.environ.get("JAVA_HOME")
                     or str(Path.home() / "AppData/Roaming/PrismLauncher/java/java-runtime-delta"))
@@ -427,30 +514,36 @@ def main():
 
     known = all_bands()
     bands = known if args.all else args.band
-    if not bands:
-        ap.error("pass --all or at least one --band")
+    if not bands and not args.prod:
+        ap.error("pass --all, --band or --prod")
     unknown = [b for b in bands if b not in known]
     if unknown:
         ap.error(f"unknown band(s) {unknown}; known: {', '.join(known)}")
 
     out_dir = ROOT / "build" / "smoke"
     out_dir.mkdir(parents=True, exist_ok=True)
+    runs = [(band, lambda b=band: run_band(b, args.java_home, out_dir, args.migration)) for band in bands]
+    runs += [(f"prod:{name}", lambda n=name: run_prod(n, args.prod_java_home, out_dir, args.migration))
+             for name in args.prod]
     summary = []
-    for band in bands:
+    for label, run in runs:
         t0 = time.time()
-        print(f"== {band}", flush=True)
-        checks = run_band(band, args.java_home, out_dir, args.migration)
+        print(f"== {label}", flush=True)
+        try:
+            checks = run()
+        except Exception as e:  # noqa: BLE001 - e.g. no built jar, installer failure
+            checks = [("setup", False, str(e))]
         for name, ok, why in checks:
             print(f"   {'PASS' if ok else 'FAIL'}  {name}{'  - ' + why if why else ''}", flush=True)
         passed = all(ok for _, ok, _ in checks)
-        summary.append((band, passed, time.time() - t0))
+        summary.append((label, passed, time.time() - t0))
 
     print("\nSummary")
     for band, passed, secs in summary:
-        print(f"  {'PASS' if passed else 'FAIL'}  {band:<18} {secs:5.0f}s")
+        print(f"  {'PASS' if passed else 'FAIL'}  {band:<22} {secs:5.0f}s")
     failed = [b for b, p, _ in summary if not p]
     print(f"\n{len(summary) - len(failed)}/{len(summary)} bands passed"
-          + (f"; gradle output in {out_dir.relative_to(ROOT)}" if failed else ""))
+          + (f"; server output in {out_dir.relative_to(ROOT)}" if failed else ""))
     sys.exit(1 if failed else 0)
 
 

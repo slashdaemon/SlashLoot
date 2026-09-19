@@ -1,0 +1,77 @@
+// Band A Forge - MC 1.20.1 (Java 17), MinecraftForge 47.x via ModDevGradle legacyforge.
+//
+// Compiles Band A's loader-neutral sources (versions/1.20.1-fabric/src, minus loader/fabric/) plus
+// this band's Forge bridge. Built against Forge 47.1.3 so the one jar also loads on NeoForge 1.20.1
+// (see gradle.properties).
+//
+// Forge 1.20.1 runs SRG names in production. Mixins therefore need the refmap the Mixin annotation
+// processor generates, and the jar that ships is legacyforge's `reobfJar` output in build/libs. The
+// Mojang-named dev jar is moved to build/devlibs and must never be published.
+plugins {
+    id "net.neoforged.moddev.legacyforge"
+}
+
+version = ""
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 17
+    it.options.encoding = "UTF-8"
+}
+
+base {
+    // -forge keeps this distinct from the Band A Fabric jar for the same MC version.
+    archivesName = "${rootProject.archives_base_name}-${rootProject.mod_version}+mc${project.minecraft_version}-forge"
+}
+
+legacyForge {
+    version = project.forge_version
+
+    // No client run config: SlashLoot is server-side only and registers nothing client-facing.
+    runs {
+        server {
+            server()
+        }
+    }
+
+    mods {
+        slashloot {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sourceSets.main.java {
+    srcDir rootProject.file("common/src/main/java")               // SeedDeriver (pure Java)
+    srcDir rootProject.file("versions/1.20.1-fabric/src/main/java")  // Band A, loader-neutral
+    exclude "dev/blockacademy/slashloot/loader/fabric/**"         // ...minus its Fabric bridge
+    // ...and minus its interface-injector vehicle hook, which needs Fabric's Mixin fork. This band's
+    // MixinMinecartUnpack / MixinChestBoatUnpack replace it (see their javadoc).
+    exclude "dev/blockacademy/slashloot/mixin/MixinContainerEntity.java"
+}
+
+dependencies {
+    // Mojang -> SRG refmap for the mixins. Without it every mixin fails to find its target in
+    // production (dev runs are Mojang-named, so only the shipped jar would show it).
+    annotationProcessor "org.spongepowered:mixin:0.8.5:processor"
+}
+
+mixin {
+    add sourceSets.main, "slashloot.refmap.json"
+    config "slashloot.mixins.json"
+}
+
+processResources {
+    inputs.property "version", rootProject.mod_version
+    filesMatching("META-INF/mods.toml") {
+        expand "version": rootProject.mod_version
+    }
+}
+
+jar {
+    // Forge 1.20.1 finds mixin configs ONLY through this manifest attribute; [[mixins]] in
+    // mods.toml is a NeoForge 1.20.2+ feature and is ignored here.
+    manifest { attributes("MixinConfigs": "slashloot.mixins.json") }
+    from("${rootProject.projectDir}/LICENSE") {
+        rename { "${it}_slashloot" }
+    }
+}

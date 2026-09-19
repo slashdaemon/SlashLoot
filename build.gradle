@@ -2,6 +2,8 @@ plugins {
     id "java"
     id "fabric-loom" version "1.13.6" apply false
     id "net.neoforged.moddev" version "2.0.144" apply false
+    // Same artifact as moddev, so it must be the same version (one version per plugin classpath).
+    id "net.neoforged.moddev.legacyforge" version "2.0.144" apply false
 }
 
 allprojects {
@@ -64,8 +66,8 @@ def fabricBands = [
         "1.21.11-fabric",  // Band F: Identifier rename, vehicle package move
 ]
 
-// NeoForge bands. NeoForge has no modern line below 1.20.5 and 1.20.1 is reachable only through
-// the legacy MDG plugin, so Band A stays Fabric-only and Band B targets 1.20.6.
+// NeoForge bands. NeoForge has no modern line below 1.20.5, so Band B targets 1.20.6. NeoForge
+// 1.20.1 is covered by the Forge band's jar (see forgeBands).
 // NF 21.6, 21.7 and 21.9 have NO stable builds (verified against maven.neoforged.net 2026-08-29 —
 // every 21.6.x and 21.9.x is a -beta), so those MC versions are covered by the 21.8 and 21.10
 // builds instead of getting bands of their own.
@@ -80,11 +82,19 @@ def neoforgeBands = [
         "1.21.11-neoforge",  // Band F: MC 1.21.11
 ]
 
+// Forge bands (MDG legacyforge). Only 1.20.1: the modpack LTS line, and the one version where
+// MinecraftForge rather than NeoForge is where mods live. build/libs holds the reobfuscated (SRG)
+// jar, the one that ships; the Mojang-named dev jar goes to build/devlibs.
+def forgeBands = [
+        "1.20.1-forge",      // Band A Forge: MC 1.20.1, also loads on NeoForge 1.20.1
+]
+
 tasks.register("buildAll") {
     group = "build"
     description = "Builds every band JAR and collects them into build/release/"
     fabricBands.each { dependsOn ":versions:${it}:build" }
     neoforgeBands.each { dependsOn ":versions:${it}:build" }
+    forgeBands.each { dependsOn ":versions:${it}:build" }
     dependsOn "build26"                  // Band G: MC 26.1.x (quarantined, both loaders)
     dependsOn "build262"                 // Band J: MC 26.2.x (quarantined, both loaders)
     dependsOn "build263"                 // Band K: MC 26.3.x (quarantined, both loaders; NeoForge beta)
@@ -104,7 +114,7 @@ tasks.register("buildAll") {
             }
         }
 
-        (fabricBands + neoforgeBands).each { band ->
+        (fabricBands + neoforgeBands + forgeBands).each { band ->
             collect(project(":versions:${band}").layout.buildDirectory.dir("libs").get().asFile)
         }
         // Bands G, J and K live outside the composite; one subproject per loader each.

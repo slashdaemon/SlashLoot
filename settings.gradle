@@ -7,6 +7,13 @@ pluginManagement {
     }
 }
 
+// Toolchain auto-provisioning for the Forge band: MDG legacyforge needs a JDK 17 toolchain for its
+// Minecraft-artifact step and dev runs. Locally ~/.gradle/gradle.properties points Gradle at Prism's
+// bundled JDKs (gamma = 17), so nothing is downloaded; elsewhere Foojay fetches one.
+plugins {
+    id "org.gradle.toolchains.foojay-resolver-convention" version "0.10.0"
+}
+
 rootProject.name = "slashloot"
 
 // Shared source lives in plain directories, not Gradle projects: mc-src/, compat/*, loader-*/ and
@@ -14,7 +21,8 @@ rootProject.name = "slashloot"
 // themselves are real projects, so there is exactly one compilation per shipped JAR.
 //
 // Bands B-J share mc-src. Band A (1.20.1) predates the RandomizableContainer interface and
-// ResourceKey<LootTable>, so it stays a self-contained fork -- see its own build.gradle.
+// ResourceKey<LootTable>, so it stays a self-contained fork -- see its own build.gradle. That fork is
+// loader-neutral behind loader/LoaderBridge, and versions:1.20.1-forge compiles it for Forge.
 
 include "versions:1.20.1-fabric"    // Band A: MC 1.20.1        (Java 17, forked sources)
 include "versions:1.20.5-fabric"    // Band B: MC 1.20.5-1.20.6
@@ -27,8 +35,13 @@ include "versions:1.21.6-fabric"    // Band E: MC 1.21.6-1.21.8
 include "versions:1.21.9-fabric"    // Band E: MC 1.21.9-1.21.10
 include "versions:1.21.11-fabric"   // Band F: MC 1.21.11
 
+// Forge band. MinecraftForge only on 1.20.1 (the modpack LTS line); built against Forge 47.1.3 so
+// the same jar also loads on NeoForge 1.20.1 (net.neoforged:forge:1.20.1-47.1.x).
+include "versions:1.20.1-forge"     // Band A Forge: MC 1.20.1      (Java 17, Band A sources)
+
 // NeoForge bands. NeoForge has no modern line below 1.20.5, and 1.20.1 is reachable only
-// through the legacy MDG plugin, so Band A stays Fabric-only and Band B targets 1.20.6.
+// through the legacy MDG plugin, so Band B targets 1.20.6. (NeoForge 1.20.1 is served by the Forge
+// band's jar.)
 include "versions:1.20.6-neoforge"  // Band B NeoForge: MC 1.20.6      (NF 20.6.x)
 include "versions:1.21.1-neoforge"  // Band C NeoForge: MC 1.21-1.21.1  (NF 21.1.x)
 include "versions:1.21.3-neoforge"  // Band D NeoForge: MC 1.21.2-1.21.3 (NF 21.3.x)

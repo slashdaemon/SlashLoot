@@ -1,0 +1,33 @@
+# Forge 1.20.1 mod manifest. Also read by NeoForge 1.20.1 (47.1.x), which kept the `mods.toml` name,
+# the `mandatory` dependency field, and the net.minecraftforge packages.
+# Deliberately NOT used here: `[[mixins]]` (ignored on 1.20.1; the jar manifest's MixinConfigs
+# attribute names the mixin config) and `clientSideOnly` (Forge 47.3.25+ only, rejected by
+# NeoForge 1.20.1).
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "CC-BY-4.0"
+issueTrackerURL = "https://github.com/slashdaemon/SlashLoot/issues"
+
+[[mods]]
+modId = "slashloot"
+version = "${version}"
+displayName = "SlashLoot"
+authors = "Slash"
+description = '''
+Server-side per-player loot for naturally-generated chests, barrels, shulker boxes, chest minecarts, and chest boats. No client install required. No custom blocks. Vanilla-compatible.
+'''
+displayURL = "https://github.com/slashdaemon/SlashLoot"
+
+[[dependencies.slashloot]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.slashloot]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.20.2)"
+ordering = "NONE"
+side = "BOTH"
