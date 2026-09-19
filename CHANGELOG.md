@@ -16,6 +16,9 @@ servers upgrade in place: your config and every player's stored loot carry over 
   `slashlootr.dat`, copies it over, and writes the new file at the next world save. The log shows a
   `Migrated <dimension> per-player loot data` line when this happens. The old file is left on disk as
   a backup and never read again; delete it once you're happy.
+- **Fixed: Minecraft 1.20.1 servers crashed at startup.** Every 1.20.1 build since 0.2.0 carried a
+  chest-minecart hook aimed at a method 1.20.1 doesn't have, and Fabric refused to load it. 1.20.1 now
+  uses the same hook as every other version.
 - Nothing else changed. Loot, commands (`/slashloot`), config options and behaviour are identical to
   0.3.3.
 

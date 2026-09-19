@@ -99,7 +99,7 @@ If we **cancel** `unpackLootTable` server-side:
 
 ### Entity containers
 
-The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. Since MC 1.20.5 these all implement `ContainerEntity` (interface) and the relevant method is `ContainerEntity#unpackChestVehicleLootTable(Player)`. In MC 1.20.1 there's no shared interface — `AbstractMinecartContainer` and `ChestBoat` each have their own `unpackLootTable(Player)` method.
+The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. All of them implement `ContainerEntity` (interface), on every band including 1.20.1, and roll through its default method `ContainerEntity#unpackChestVehicleLootTable(Player)`. On 1.20.1 `ChestBoat#unpackLootTable` only delegates to it, and `AbstractMinecartContainer` has no `unpackLootTable` of its own, so a hook on either class misses minecarts (0.2.0–0.3.3 shipped exactly that, and the 1.20.1 JAR failed at startup).
 
 ---
 
@@ -574,8 +574,8 @@ the quarantine.
 ported by hand. 1.20.1:
 
 - has **no `RandomizableContainer` interface** - the mixin targets `RandomizableContainerBlockEntity`
-- has **no `ContainerEntity` interface** - minecarts and chest boats are unrelated types, needing
-  separate mixins on `AbstractMinecartContainer` and `ChestBoat`
+- **does** have `ContainerEntity`, so entity containers use the same `MixinContainerEntity` hook on
+  `unpackChestVehicleLootTable` as the shared tree
 - stores loot tables as **`ResourceLocation`**, not `ResourceKey<LootTable>`
 - keeps those fields **private**, so reads go through `@Accessor` mixins
 - resolves tables via `MinecraftServer#getLootData()` rather than `reloadableRegistries()`

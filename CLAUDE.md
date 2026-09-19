@@ -112,7 +112,8 @@ apply from: "${rootDir}/gradle/fabric-band.gradle"
 ### Band A is deliberately a fork
 
 `versions/1.20.1-fabric/` keeps its own full copy of the sources. MC 1.20.1 predates the
-`RandomizableContainer` and `ContainerEntity` interfaces, stores loot tables as `ResourceLocation`
+`RandomizableContainer` interface (it *does* have `ContainerEntity`, and Band A hooks it exactly like
+`mc-src`), stores loot tables as `ResourceLocation`
 rather than `ResourceKey<LootTable>`, and keeps those fields private (hence the `@Accessor` mixins).
 Sharing it would mean an opaque loot-reference abstraction across every band to serve one legacy
 Fabric-only version. **Changes to `mc-src` must be ported to Band A by hand** — its `Handling` keeps
@@ -182,6 +183,15 @@ widely-circulated matrices claim stable NeoForge exists for 21.6 / 21.9; it does
 ## Verification
 
 **Build gate:** `./gradlew buildAll` must collect 24 JARs into `build/release/`.
+
+**Smoke gate:** `python scripts/smoke.py --all --migration` must pass every band (about an hour).
+It boots each band's `runServer` in a throwaway `smoke-world`, fails on any Mixin/loader/SlashLoot
+error, runs the hopper fixtures below over RCON, then re-boots with pre-rename `slashlootr` files and
+checks they migrate. Use `--band <name>` for one band. It runs on 25594/25595 (`--port` to move);
+other repos' test servers use 25590/25591. **A clean compile proves nothing about mixins**: 1.20.1
+shipped a startup crash from 0.2.0 to 0.3.3 because nothing ever booted it.
+
+The script automates the manual pass below. Keep them in step.
 
 **Headless functional pass** (no client needed — a hopper under a container triggers
 `unpackLootTable`, which is the exact path the mixins hook). Boot a bare Fabric server with the

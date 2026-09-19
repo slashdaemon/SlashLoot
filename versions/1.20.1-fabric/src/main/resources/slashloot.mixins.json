@@ -8,8 +8,7 @@
     "AccessorChestBoat",
     "AccessorShulkerBoxBlock",
     "MixinRandomizableContainer",
-    "MixinAbstractMinecartContainer",
-    "MixinChestBoat",
+    "MixinContainerEntity",
     "MixinEntityRemoved"
   ],
   "client": [],
