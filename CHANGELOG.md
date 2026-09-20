@@ -2,7 +2,7 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
-## 0.5.0 — 2026-09-19
+## 0.5.0 — 2026-09-20
 
 - **New: Forge 1.20.1.** A new `slashloot-0.5.0+mc1.20.1-forge.jar` for MinecraftForge 1.20.1 (Forge 47
   or later). Like every other build it is server-side only: players connect with an unmodified game.
