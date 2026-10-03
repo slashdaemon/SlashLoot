@@ -10,7 +10,6 @@ import dev.blockacademy.slashloot.mixin.AccessorShulkerBoxBlock;
 import dev.blockacademy.slashloot.store.PlayerLootEntry;
 import dev.blockacademy.slashloot.store.SlashLootState;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -25,9 +24,9 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
-import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.phys.BlockHitResult;
 
 /**
@@ -61,17 +60,29 @@ public final class ContainerInteractionHandler {
         // BarrelBlockEntity and ShulkerBoxBlockEntity all extend it, so this covers every lockable
         // kind. It is NOT the shulker obstruction check (a different, static method on the Block),
         // which is checked separately below.
-        if (be instanceof BaseContainerBlockEntity bcbe && !bcbe.canOpen(sp)) return InteractionResult.PASS;
-        if (be instanceof ChestBlockEntity && ChestBlock.isChestBlockedAt(level, pos)) {
-            return InteractionResult.PASS;
-        }
+        //
+        // A double chest is gated on BOTH halves, as vanilla's ChestBlock menu provider does: either
+        // half locked or obstructed keeps it shut. Lock checks run first half, then second, so the
+        // "locked" message names the same half vanilla's would.
         BlockState state = level.getBlockState(pos);
+        DoubleChest pair = decision.kind() == ContainerKind.DOUBLE_CHEST ? DoubleChest.of(level, pos, state, be) : null;
+        if (pair != null) {
+            if (!canOpen(pair.firstBe(), sp) || !canOpen(pair.secondBe(), sp)) return InteractionResult.PASS;
+            if (ChestBlock.isChestBlockedAt(level, pair.first()) || ChestBlock.isChestBlockedAt(level, pair.second())) {
+                return InteractionResult.PASS;
+            }
+        } else {
+            if (!canOpen(be, sp)) return InteractionResult.PASS;
+            if (be instanceof ChestBlockEntity && ChestBlock.isChestBlockedAt(level, pos)) {
+                return InteractionResult.PASS;
+            }
+        }
         if (be instanceof ShulkerBoxBlockEntity sbe
                 && !AccessorShulkerBoxBlock.slashloot$canOpen(state, level, pos, sbe)) {
             return InteractionResult.PASS;
         }
 
-        Built built = buildPerPlayerContainer(level, pos, state, be, sp, decision);
+        Built built = buildPerPlayerContainer(level, pos, be, pair, sp, decision);
         if (built == null) return InteractionResult.PASS;
 
         sp.openMenu(decision.kind().menuProvider(built.container(), built.title()));
@@ -105,41 +116,58 @@ public final class ContainerInteractionHandler {
     private static Built buildPerPlayerContainer(
             ServerLevel level,
             BlockPos pos,
-            BlockState state,
             BlockEntity be,
+            DoubleChest pair,
             ServerPlayer sp,
             Handling.Decision decision) {
 
         SlashLootState store = SlashLootState.get(level);
         boolean delegate = SlashLootConfig.get().delegateContainerAnimation;
 
-        if (decision.kind() != ContainerKind.DOUBLE_CHEST) {
-            LootContainer c = getOrRoll(store, level, pos, be, sp, decision.slots(), delegate);
+        if (pair == null) {
+            // A double chest whose other half is gone or not a chest is served as this half alone
+            // rather than a broken menu.
+            int slots = decision.kind() == ContainerKind.DOUBLE_CHEST ? Math.max(1, decision.slots() / 2) : decision.slots();
+            LootContainer c = getOrRoll(store, level, pos, be, sp, slots, delegate);
             return new Built(c, titleOf(be, decision.kind()));
         }
 
-        Direction connected = ChestBlock.getConnectedDirection(state);
-        BlockPos otherPos = pos.relative(connected);
-        BlockEntity otherBe = level.getBlockEntity(otherPos);
-        if (!(otherBe instanceof ChestBlockEntity) || !(otherBe instanceof RandomizableContainerBlockEntity)) {
-            int half = Math.max(1, decision.slots() / 2);
-            LootContainer c = getOrRoll(store, level, pos, be, sp, half, delegate);
-            return new Built(c, titleOf(be, decision.kind()));
+        LootContainer firstC = getOrRoll(store, level, pair.first(), pair.firstBe(), sp,
+                pair.firstBe() instanceof Container c ? c.getContainerSize() : 27, delegate);
+        LootContainer secondC = getOrRoll(store, level, pair.second(), pair.secondBe(), sp,
+                pair.secondBe() instanceof Container c ? c.getContainerSize() : 27, delegate);
+        return new Built(new CompoundContainer(firstC, secondC), doubleChestTitle(pair));
+    }
+
+    /** {@code BaseContainerBlockEntity#canOpen} is the Lock check; it also shows the "locked" message. */
+    private static boolean canOpen(BlockEntity be, ServerPlayer p) {
+        return !(be instanceof BaseContainerBlockEntity bcbe) || bcbe.canOpen(p);
+    }
+
+    /** Vanilla's double-chest title: first half's custom name, else second half's, else "Large Chest". */
+    private static Component doubleChestTitle(DoubleChest pair) {
+        if (pair.firstBe() instanceof BaseContainerBlockEntity a && a.hasCustomName()) return a.getDisplayName();
+        if (pair.secondBe() instanceof BaseContainerBlockEntity b && b.hasCustomName()) return b.getDisplayName();
+        return ContainerKind.DOUBLE_CHEST.defaultTitle();
+    }
+
+    /**
+     * Both halves of a double chest in vanilla's order: the RIGHT half is first ({@code ChestBlock}'s
+     * {@code DoubleBlockCombiner} calls it FIRST), so the top rows of the merged menu, the lock-check
+     * order and the title all follow the same half vanilla's would. Each half's personal container is
+     * keyed by its own position, so the order is display only.
+     */
+    private record DoubleChest(BlockPos first, BlockEntity firstBe, BlockPos second, BlockEntity secondBe) {
+
+        /** Null when the other half is gone or not a chest; the clicked half is then served alone. */
+        static DoubleChest of(ServerLevel level, BlockPos pos, BlockState state, BlockEntity be) {
+            BlockPos otherPos = pos.relative(ChestBlock.getConnectedDirection(state));
+            BlockEntity otherBe = level.getBlockEntity(otherPos);
+            if (!(otherBe instanceof ChestBlockEntity)) return null;
+            return state.getValue(ChestBlock.TYPE) == ChestType.RIGHT
+                    ? new DoubleChest(pos, be, otherPos, otherBe)
+                    : new DoubleChest(otherPos, otherBe, pos, be);
         }
-
-        // Canonical ordering so the two halves never swap between openings.
-        BlockPos first = pos.asLong() < otherPos.asLong() ? pos : otherPos;
-        BlockPos second = first == pos ? otherPos : pos;
-        BlockEntity firstBe = first == pos ? be : otherBe;
-        BlockEntity secondBe = first == pos ? otherBe : be;
-
-        int firstSlots = firstBe instanceof Container c ? c.getContainerSize() : 27;
-        int secondSlots = secondBe instanceof Container c ? c.getContainerSize() : 27;
-
-        LootContainer firstC = getOrRoll(store, level, first, firstBe, sp, firstSlots, delegate);
-        LootContainer secondC = getOrRoll(store, level, second, secondBe, sp, secondSlots, delegate);
-        // Matches vanilla: the merged menu takes its title from one canonical half, not both.
-        return new Built(new CompoundContainer(firstC, secondC), titleOf(firstBe, decision.kind()));
     }
 
     private static Component titleOf(BlockEntity be, ContainerKind kind) {

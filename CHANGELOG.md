@@ -2,6 +2,22 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
+## 0.5.2 — unreleased
+
+Double chests now follow vanilla's rules exactly. Thanks to TheArchictect for the detailed report.
+
+- **Fixed: an unnamed double chest showed "Chest" as its title.** It now shows "Large Chest", like
+  vanilla.
+- **Fixed: a double chest opened if you clicked its free half while the other half was blocked**
+  (for example by a solid block or a sitting cat on top of it). It now stays shut, like vanilla.
+- **Fixed: a double chest with only one half locked opened from the unlocked half.** Both halves now
+  have to be unlockable.
+- **Fixed: if only one half was renamed, its name could be lost.** The menu now uses vanilla's name
+  rule: the first named half wins, and with no names it's "Large Chest".
+- The two halves now appear in the same top-and-bottom order as vanilla. On some existing double
+  chests your two halves may swap places once; nothing in them is lost.
+- Applies to every file (Fabric, NeoForge and Forge).
+
 ## 0.5.1 — 2026-10-02
 
 - **Fixed: the Fabric builds now work in singleplayer, LAN and e4mc worlds.** Every Fabric file was
