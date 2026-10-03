@@ -42,6 +42,8 @@ SlashLoot runs entirely on the server. Players connect with plain vanilla Fabric
 
 That's it. Clients connect with an unmodified game — nothing to install on their end.
 
+**Singleplayer and LAN work too.** A singleplayer world runs its own built-in server, so for singleplayer, LAN or e4mc worlds just put SlashLoot (and Fabric API, on Fabric) in your own `mods/` folder. Friends joining your LAN world don't need it.
+
 ## Supported versions
 
 25 JARs — 13 Fabric, 11 NeoForge, 1 Forge. Pick the one matching your server's Minecraft version **and loader** — files are named `slashloot-<version>+mc<band>-<loader>.jar`. Fabric builds need Fabric API at the listed version; NeoForge and Forge builds need nothing beyond the loader.

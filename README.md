@@ -67,6 +67,10 @@ For the breakdown of which vanilla APIs each band needs and what was rewritten p
 
 That's it. Clients connect with an unmodified game (no SlashLoot in their mods folder).
 
+**Singleplayer and LAN.** A singleplayer world runs its own built-in server, so for singleplayer, LAN
+or e4mc worlds put SlashLoot (and Fabric API, on Fabric) in your own game's `mods/` folder. Friends who
+join your LAN world don't need it. `/slashloot` commands need cheats enabled.
+
 ## How it works (one paragraph)
 
 Two intercepts on the vanilla loot path:

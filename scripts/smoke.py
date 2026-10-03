@@ -19,10 +19,17 @@ installer (build/smoke/prod-<target>/). Dev runs are Mojang-named; Forge product
 a broken refmap or reobf only shows up here. Targets: `forge` (Forge 1.20.1) and `neoforge-1.20.1`
 (the same jar on NeoForge's 1.20.1 line).
 
+--integrated adds a client pass to Fabric bands: after the dedicated pass, the band's `runClient`
+opens `smoke-world` as a singleplayer world (--quickPlaySingleplayer), so SlashLoot has to load in a
+client JVM and serve the integrated server. There is no RCON there, so a datapack dropped into the
+world runs the same FIXTURES and reports with `say SMOKE ...` lines in the client log. This opens a
+real game window per band. With --all it runs the Fabric bands only.
+
 Usage:
     python scripts/smoke.py --all
     python scripts/smoke.py --band 1.20.1-fabric --band 26.3-neoforge --migration
     python scripts/smoke.py --prod forge --prod neoforge-1.20.1
+    python scripts/smoke.py --all --integrated
 
 Band names are the composite projects (`1.21.1-fabric`) or `<26.x dir>-<loader>` (`26.3-fabric`).
 Uses JAVA_HOME if set, else Prism's java-runtime-delta (JDK 21); the 26.x wrappers fetch JDK 25
@@ -51,6 +58,7 @@ QUARANTINED = ["26.1.2", "26.2", "26.3"]
 WORLD = "smoke-world"
 PORT, RCON_PORT, RCON_PASSWORD = 25594, 25595, "slashtest"  # --port overrides; RCON is port + 1
 BOOT_TIMEOUT = 420
+CLIENT_TIMEOUT = 900  # a band's first runClient downloads its assets
 IS_WINDOWS = os.name == "nt"
 
 TABLE = "minecraft:chests/simple_dungeon"
@@ -371,6 +379,38 @@ class ProdServer(Server):
         shutil.copy2(jar, mods / jar.name)
 
 
+class IntegratedClient(Server):
+    """The band's dev client, opened straight into `smoke-world` - SlashLoot on an integrated server."""
+
+    def __init__(self, band, java_home, out_dir):
+        super().__init__(band, java_home, out_dir)
+        self.out_path = out_dir / f"smoke-{band}.client.gradle.log"
+        self.cmd = [a.replace(":runServer", ":runClient") for a in self.cmd] + \
+            [f"--args=--quickPlaySingleplayer {WORLD}"]
+
+    def start(self):
+        self.started_at = time.time()
+        self.out = open(self.out_path, "w", encoding="utf-8", errors="replace")
+        self.proc = subprocess.Popen(self.cmd, cwd=self.cwd, env=self.env, stdin=subprocess.DEVNULL,
+                                     stdout=self.out, stderr=subprocess.STDOUT)
+
+    def wait_done(self):
+        deadline = time.time() + CLIENT_TIMEOUT
+        while time.time() < deadline:
+            if "SMOKE done" in self.log_text():
+                return
+            if self.proc.poll() is not None:
+                raise RuntimeError(f"client exited before the fixtures finished (see {self.out_path.name})")
+            time.sleep(2)
+        raise RuntimeError(f"no 'SMOKE done' after {CLIENT_TIMEOUT}s")
+
+    def stop(self):
+        if self.proc is not None:
+            kill_tree(self.proc)
+        if self.out is not None:
+            self.out.close()
+
+
 ERROR_RE = re.compile(r"(/ERROR\]|\[ERROR\]|/FATAL\]).*(mixin|slashloot|fabricloader|neoforge|modloading)"
                       r"|(mixin|slashloot).*(/ERROR\]|\[ERROR\])", re.I)
 
@@ -444,6 +484,123 @@ def check_migration(server, rcon):
     ]
 
 
+# --------------------------------------------------------------------------- integrated server
+
+PACK = "slashsmoke"
+# One pack.mcmeta for every band: pack_format + supported_formats up to 1.21.8, min/max_format from
+# 1.21.9. Folder names went singular at 1.21 (functions -> function), so both spellings are written.
+PACK_MCMETA = """{"pack": {"description": "SlashLoot smoke fixtures", "pack_format": 15,
+  "supported_formats": {"min_inclusive": 15, "max_inclusive": 9999},
+  "min_format": 15, "max_format": 9999}}
+"""
+CLIENT_OPTIONS = {"pauseOnLostFocus": "false", "onboardAccessibility": "false",
+                  "renderDistance": "4", "simulationDistance": "5", "maxFps": "30"}
+
+
+def fixture_key(name):
+    return name.replace(" ", "_")
+
+
+def write_fixture_pack(world):
+    """The datapack that replaces RCON on an integrated server: same FIXTURES, `say` for results."""
+    # The dedicated pass already ran in this world: clear its containers and filled hoppers first.
+    clear = [f"kill @e[type=minecraft:chest_minecart,tag=smoke]"]
+    for _, (x, y, z), _, _ in FIXTURES:
+        clear += [f"setblock {x} {y} {z} minecraft:air", f"setblock {x} {y - 1} {z} minecraft:air"]
+    setup = clear + [c for _, _, cmds, _ in FIXTURES for c in cmds] + \
+        [f"schedule function {PACK}:check 120t"]
+    check = []
+    for name, (x, y, z), _, _ in FIXTURES:
+        key = fixture_key(name)
+        target = f"entity {MINECART_SELECTOR}" if name == "chest minecart" else f"block {x} {y} {z}"
+        check += [f"execute if data {target} LootTable run say SMOKE {key} kept",
+                  f"execute unless data {target} LootTable run say SMOKE {key} gone",
+                  f"execute if data block {x} {y - 1} {z} Items[0] run say SMOKE {key} hopper_filled"]
+    check.append("say SMOKE done")
+    functions = {
+        "load": ["forceload add 0 0 31 15", f"schedule function {PACK}:setup 40t"],
+        "setup": setup,
+        "check": check,
+    }
+    pack = world / "datapacks" / PACK
+    shutil.rmtree(pack, ignore_errors=True)
+    pack.mkdir(parents=True)
+    (pack / "pack.mcmeta").write_text(PACK_MCMETA, encoding="utf-8")
+    for fn_dir, tag_dir in (("functions", "functions"), ("function", "function")):
+        for fn, lines in functions.items():
+            p = pack / "data" / PACK / fn_dir / f"{fn}.mcfunction"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tag = pack / "data" / "minecraft" / "tags" / tag_dir / "load.json"
+        tag.parent.mkdir(parents=True, exist_ok=True)
+        tag.write_text('{"values": ["%s:load"]}\n' % PACK, encoding="utf-8")
+
+
+def prepare_client_run(run):
+    """Copy the dedicated pass's world into saves/, add the fixture pack, set non-pausing options."""
+    src = run / WORLD
+    if not (src / "level.dat").exists():
+        raise RuntimeError(f"no {WORLD} in {run} - the dedicated pass did not create it")
+    dst = run / "saves" / WORLD
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("session.lock"))
+    write_fixture_pack(dst)
+    opts_path = run / "options.txt"
+    lines = opts_path.read_text(encoding="utf-8").splitlines() if opts_path.exists() else []
+    keep = [ln for ln in lines if ln.split(":", 1)[0] not in CLIENT_OPTIONS]
+    opts_path.write_text("\n".join(keep + [f"{k}:{v}" for k, v in CLIENT_OPTIONS.items()]) + "\n",
+                         encoding="utf-8")
+
+
+def check_integrated(log):
+    results = [("loads in client", "SlashLoot loaded" in log, "" if "SlashLoot loaded" in log
+                else "no 'SlashLoot loaded' line - Fabric did not load the mod in the client")]
+    said = set(re.findall(r"SMOKE (\S+ \S+)", log))
+    for name, (x, y, z), _, instanced in FIXTURES:
+        key = fixture_key(name)
+        kept = f"{key} kept" in said
+        rolled = f"{key} hopper_filled" in said
+        if name == "chest minecart":
+            verdict = re.search(r"chest_minecart.*-> INSTANCE", log)
+        else:
+            verdict = re.search(rf"\[{x},{y},{z}\].*-> INSTANCE", log)
+        if instanced:
+            ok = kept and verdict is not None
+            why = "" if ok else f"tag {'kept' if kept else 'GONE'}, INSTANCE verdict {'seen' if verdict else 'MISSING'}"
+        else:
+            ok = not kept and verdict is None and rolled
+            why = "" if ok else (f"expected vanilla roll; tag {'KEPT' if kept else 'gone'}, "
+                                 f"verdict {'INSTANCE' if verdict else 'none'}, hopper {'filled' if rolled else 'EMPTY'}")
+        results.append((f"integrated: {name}", ok, why))
+    return results
+
+
+def run_integrated(band, java_home, out_dir):
+    client = IntegratedClient(band, java_home, out_dir)
+    checks = []
+    try:
+        prepare_client_run(client.run)
+        client.start()
+        client.wait_done()
+        time.sleep(2)
+        text = client.log_text()
+        errors = startup_errors(text)
+        checks.append(("integrated: boots clean", not errors, errors[0] if errors else ""))
+        checks += check_integrated(text)
+    except Exception as e:  # noqa: BLE001 - a FAIL row, keep going with other bands
+        text = client.log_text()
+        errors = startup_errors(text)
+        checks.append(("integrated: boots clean", False, errors[0] if errors else str(e)))
+        if text and "SlashLoot loaded" not in text:
+            checks.append(("loads in client", False, "no 'SlashLoot loaded' line"))
+    finally:
+        client.stop()
+    crashes = client.new_crash_reports()
+    if crashes:
+        checks.append(("integrated: no crash report", False, crashes[0]))
+    return checks
+
+
 # --------------------------------------------------------------------------- driver
 
 def boot(make_server, fresh, body):
@@ -486,8 +643,11 @@ def run_checks(make_server, migration):
     return checks
 
 
-def run_band(band, java_home, out_dir, migration):
-    return run_checks(lambda: Server(band, java_home, out_dir), migration)
+def run_band(band, java_home, out_dir, migration, integrated=False):
+    checks = run_checks(lambda: Server(band, java_home, out_dir), migration)
+    if integrated:
+        checks += run_integrated(band, java_home, out_dir)
+    return checks
 
 
 def run_prod(name, java_home, out_dir, migration):
@@ -506,6 +666,9 @@ def main():
                     help="test the shipped jar on a real installer-built server (repeatable)")
     ap.add_argument("--prod-java-home", default=str(Path.home() / "AppData/Roaming/PrismLauncher/java/java-runtime-gamma"),
                     help="JDK for --prod servers (default: Prism's JDK 17)")
+    ap.add_argument("--integrated", action="store_true",
+                    help="also open each Fabric band's dev client on the world (singleplayer); "
+                         "opens a game window; with --all, runs the Fabric bands only")
     ap.add_argument("--port", type=int, default=PORT, help="server port; RCON uses port + 1")
     ap.add_argument("--java-home", default=os.environ.get("JAVA_HOME")
                     or str(Path.home() / "AppData/Roaming/PrismLauncher/java/java-runtime-delta"))
@@ -519,10 +682,17 @@ def main():
     unknown = [b for b in bands if b not in known]
     if unknown:
         ap.error(f"unknown band(s) {unknown}; known: {', '.join(known)}")
+    if args.integrated:
+        if args.all:
+            bands = [b for b in bands if b.endswith("-fabric")]
+        not_fabric = [b for b in bands if not b.endswith("-fabric")]
+        if not_fabric:
+            ap.error(f"--integrated is a Fabric-only pass; drop {not_fabric}")
 
     out_dir = ROOT / "build" / "smoke"
     out_dir.mkdir(parents=True, exist_ok=True)
-    runs = [(band, lambda b=band: run_band(b, args.java_home, out_dir, args.migration)) for band in bands]
+    runs = [(band, lambda b=band: run_band(b, args.java_home, out_dir, args.migration, args.integrated))
+            for band in bands]
     runs += [(f"prod:{name}", lambda n=name: run_prod(n, args.prod_java_home, out_dir, args.migration))
              for name in args.prod]
     summary = []

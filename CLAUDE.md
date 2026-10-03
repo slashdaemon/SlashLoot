@@ -1,6 +1,6 @@
 # CLAUDE.md — SlashLoot
 
-Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required.** Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
+Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required** on a dedicated server; for singleplayer/LAN it goes in the player's own `mods/` (the integrated server). Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
 
 ## Why this exists
 
@@ -212,6 +212,16 @@ checks they migrate. Use `--band <name>` for one band. It runs on 25594/25595 (`
 other repos' test servers use 25590/25591. **A clean compile proves nothing about mixins**: 1.20.1
 shipped a startup crash from 0.2.0 to 0.3.3 because nothing ever booted it.
 
+**Integrated gate (Fabric):** `python scripts/smoke.py --all --integrated` runs the dedicated pass
+on every Fabric band, then opens the band's `runClient` straight into the same world
+(`--quickPlaySingleplayer`), so the mod has to load in a client JVM and serve an integrated server.
+A datapack generated from `FIXTURES` replaces RCON and reports through `say SMOKE ...` lines. It opens
+a real game window per band (about 25 minutes for all 13). **Both `fabric.mod.json` files must keep
+`"environment": "*"`:** up to 0.5.0 they said `"server"`, so Fabric skipped the mod in every client
+and singleplayer/LAN/e4mc worlds ran without it. The mod is client-safe because every hook bails on
+a client level (`FabricBridge` returns `PASS`, the mixins check `isClientSide`/`ServerLevel`); keep it
+that way, since a non-`PASS` from a client-side `UseBlockCallback` stops the interaction packet.
+
 The script automates the manual pass below. Keep them in step.
 
 **Headless functional pass** (no client needed — a hopper under a container triggers
@@ -258,4 +268,4 @@ Repeat for: trapped chest, barrel, shulker box, chest minecart, double chest (bo
 
 ## Repository
 
-`slashdaemon/SlashLoot`. No `Co-Authored-By: Claude` trailer on commits. Not part of the TBA modpack — it is a server-side-only addon.
+`slashdaemon/SlashLoot`. No `Co-Authored-By: Claude` trailer on commits. Not part of the TBA modpack — it is a server-side addon (singleplayer/LAN load it client-side).

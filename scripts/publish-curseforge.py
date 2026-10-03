@@ -139,9 +139,10 @@ def java_version_for(band: str) -> str:
 
 
 # CurseForge requires at least one tag from its "Environment" version group, or the upload is
-# rejected with errorCode 1021. SlashLoot is server-side only (fabric.mod.json declares
-# environment=server, and clients connect unmodified), so every file is tagged Server.
-CURSEFORGE_ENVIRONMENT = "Server"
+# rejected with errorCode 1021. SlashLoot runs wherever the server runs: on a dedicated server
+# (clients connect unmodified) and on the integrated server of a singleplayer/LAN world, which
+# lives in the client install. So every file is tagged both Client and Server.
+CURSEFORGE_ENVIRONMENTS = ["Client", "Server"]
 
 
 # CurseForge "Modloader" tags per JAR loader. The Forge 1.20.1 jar is built against Forge 47.1.3,
@@ -273,7 +274,7 @@ def resolve_game_version_ids(
     loader_names: list[str],
 ) -> list[int]:
     """Build the gameVersions int-ID array CurseForge expects."""
-    requested = [*mc_versions, *loader_names, java_version, CURSEFORGE_ENVIRONMENT]
+    requested = [*mc_versions, *loader_names, java_version, *CURSEFORGE_ENVIRONMENTS]
     ids: list[int] = []
     missing: list[str] = []
     for name in requested:

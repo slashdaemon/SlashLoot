@@ -2,6 +2,17 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
+## 0.5.1 — unreleased
+
+- **Fixed: the Fabric builds now work in singleplayer, LAN and e4mc worlds.** Every Fabric file was
+  marked server-only, so Fabric skipped SlashLoot in any game client, including the built-in server
+  that runs a singleplayer world. To use it there, put SlashLoot and Fabric API in your own `mods/`
+  folder. Friends who join your LAN world don't need it.
+- On a dedicated server nothing changes: only the server needs SlashLoot, and players connect with an
+  unmodified game. Having it installed on the client as well (for example in a modpack) is harmless.
+- Only the 13 Fabric files are new. The Forge and NeoForge files already worked in singleplayer and
+  stay at 0.5.0.
+
 ## 0.5.0 — 2026-09-20
 
 - **New: Forge 1.20.1.** A new `slashloot-0.5.0+mc1.20.1-forge.jar` for MinecraftForge 1.20.1 (Forge 47

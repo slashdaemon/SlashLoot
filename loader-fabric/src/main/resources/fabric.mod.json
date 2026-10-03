@@ -11,7 +11,7 @@
     "issues": "https://github.com/slashdaemon/SlashLoot/issues"
   },
   "license": "CC-BY-4.0",
-  "environment": "server",
+  "environment": "*",
   "entrypoints": {
     "main": ["dev.blockacademy.slashloot.loader.fabric.SlashLootFabric"]
   },
