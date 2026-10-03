@@ -2,7 +2,7 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
-## 0.5.1 — unreleased
+## 0.5.1 — 2026-10-02
 
 - **Fixed: the Fabric builds now work in singleplayer, LAN and e4mc worlds.** Every Fabric file was
   marked server-only, so Fabric skipped SlashLoot in any game client, including the built-in server
