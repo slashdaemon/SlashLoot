@@ -2,7 +2,7 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
-## 0.5.2 — unreleased
+## 0.5.2 — 2026-10-02
 
 Double chests now follow vanilla's rules exactly. Thanks to TheArchictect for the detailed report.
 
