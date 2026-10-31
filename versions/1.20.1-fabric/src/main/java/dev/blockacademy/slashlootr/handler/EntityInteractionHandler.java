@@ -34,13 +34,24 @@ public class EntityInteractionHandler implements UseEntityCallback {
         if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
         if (player.isSpectator()) return InteractionResult.PASS;
 
+        // A plain click boards an empty chest boat. Vanilla opens it on a sneak-click, or when the
+        // seat is taken.
+        if (entity instanceof ChestBoat && !player.isSecondaryUseActive() && entity.getPassengers().isEmpty()) {
+            return InteractionResult.PASS;
+        }
+
         ServerLevel level = (ServerLevel) world;
+        return openInstanced(sp, level, entity) ? InteractionResult.SUCCESS : InteractionResult.PASS;
+    }
+
+    /**
+     * Opens the player's personal copy if this vehicle is ours. Also called for a rider pressing the
+     * inventory key, which reaches the vehicle without any click.
+     */
+    public static boolean openInstanced(ServerPlayer sp, ServerLevel level, Entity entity) {
         Handling.Decision decision = Handling.forEntity(level, entity);
         Handling.logEntity(level, entity, decision);
-        if (!decision.instanced()) return InteractionResult.PASS;
-
-        // Sneaking on a chest boat is "mount", not "open" — leave it to vanilla.
-        if (entity instanceof ChestBoat && player.isSecondaryUseActive()) return InteractionResult.PASS;
+        if (!decision.instanced()) return false;
 
         SlashLootrState store = SlashLootrState.get(level);
         PlayerLootEntry entry = store.entityEntry(entity.getUUID());
@@ -56,7 +67,7 @@ public class EntityInteractionHandler implements UseEntityCallback {
             store.setDirty();
         }
 
-        sp.openMenu(decision.kind().menuProvider(container));
-        return InteractionResult.SUCCESS;
+        sp.openMenu(decision.kind().menuProvider(container, null, entity.getDisplayName()));
+        return true;
     }
 }

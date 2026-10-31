@@ -9,6 +9,7 @@
     "MixinRandomizableContainer",
     "MixinContainerEntity",
     "MixinChestBoat",
+    "MixinChestBoatInventory",
     "MixinEntityRemoved"
   ],
   "client": [],

@@ -21,9 +21,9 @@ public enum ContainerKind {
     BARREL(27, "container.barrel", Style.CHEST),
     SHULKER(27, "container.shulkerBox", Style.SHULKER),
     DOUBLE_CHEST(54, "container.chestDouble", Style.CHEST),
-    MINECART_CHEST(27, "container.minecart", Style.CHEST),
-    MINECART_HOPPER(5, "container.hopper", Style.HOPPER),
-    CHEST_BOAT(27, "container.chestBoat", Style.CHEST);
+    MINECART_CHEST(27, "entity.minecraft.chest_minecart", Style.CHEST),
+    MINECART_HOPPER(5, "entity.minecraft.hopper_minecart", Style.HOPPER),
+    CHEST_BOAT(27, "container.chest", Style.CHEST);
 
     private enum Style { CHEST, SHULKER, HOPPER }
 
@@ -50,7 +50,11 @@ public enum ContainerKind {
      *     to report. See {@link LootChestMenu} for why chest-style menus need it.
      */
     public MenuProvider menuProvider(Container container, Container worldView) {
-        Component title = Component.translatable(translationKey);
+        return menuProvider(container, worldView, Component.translatable(translationKey));
+    }
+
+    /** With an explicit title: vehicles use their entity name, as vanilla does. */
+    public MenuProvider menuProvider(Container container, Container worldView, Component title) {
         int slots = container.getContainerSize();
 
         // ShulkerBoxMenu hardcodes a 27-slot layout; a modded shulker of another size has to fall
