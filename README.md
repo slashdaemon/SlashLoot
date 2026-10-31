@@ -36,9 +36,9 @@ The 26.1 and 26.2 bands are quarantined builds: their own Gradle 9.4 wrapper, JD
 | 1.20.6 | NeoForge | — |
 | 1.21 | Fabric | 0.102.0+1.21 |
 | 1.21.1 | Fabric | 0.115.6+1.21.1 |
-| 1.21–1.21.1 | NeoForge | — |
+| 1.21.1 | NeoForge | — |
 | 1.21.2–1.21.3 | Fabric | 0.106.1+1.21.2 |
-| 1.21.2–1.21.3 | NeoForge | — |
+| 1.21.3 | NeoForge | — |
 | 1.21.4 | Fabric / NeoForge | 0.114.0+1.21.4 |
 | 1.21.5 | Fabric / NeoForge | 0.127.1+1.21.5 |
 | 1.21.6–1.21.8 | Fabric | 0.128.1+1.21.6 |
