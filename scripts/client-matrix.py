@@ -3,6 +3,7 @@
     python scripts/client-matrix.py                         every jar
     python scripts/client-matrix.py --only 1.21.5           one band, both loaders
     python scripts/client-matrix.py --only 1.21.1 --loader fabric --stages vehicles
+    python scripts/client-matrix.py --two-players           two clients share one chest boat
     python scripts/client-matrix.py --cleanup               delete the SL-Vanilla-* instances
 
 Clients are plain vanilla Prism instances, created on demand: SlashLoot needs no client mod, so this
@@ -17,6 +18,7 @@ import importlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -44,8 +46,8 @@ soundCategory_master:0.1
 """
 
 
-def instance_for(mc):
-    name = f"SL-Vanilla-{mc}"
+def instance_for(mc, suffix=""):
+    name = f"SL-Vanilla-{mc}{suffix}"
     home = PRISM / name
     if home.exists():
         return name
@@ -74,8 +76,18 @@ def slots_box(img, rows=3):
     return (left + 16, top + 36, left + 16 + 324, top + 36 + rows * 36)
 
 
+def menu_open(path):
+    """True when a container screen is showing: its panel is the only large flat (198,198,198) area."""
+    img = Image.open(path).convert("RGB")
+    w, h = img.size
+    px = list(img.crop((w // 2 - 176, 0, w // 2 + 176, h)).get_flattened_data())
+    return sum(p == (198, 198, 198) for p in px) > len(px) * 0.05
+
+
 def has_items(path):
-    """True when the slot grid holds anything but the empty-slot colours."""
+    """True when a menu is showing and its slot grid holds anything but the empty-slot colours."""
+    if not menu_open(path):
+        return False
     img = Image.open(path).convert("RGB")
     plain = {(139, 139, 139), (55, 55, 55), (255, 255, 255), (198, 198, 198)}
     crop = img.crop(slots_box(img))
@@ -83,8 +95,17 @@ def has_items(path):
     return sum(p not in plain for p in px) > len(px) * 0.01
 
 
+def count_pixels(img, box):
+    """Near-white pixels in a slot's bottom-right, where the stack count is drawn."""
+    left, top, right, bottom = box
+    return sum(min(p) > 235 for p in img.crop((left + 10, top + 16, right, bottom)).get_flattened_data())
+
+
 def same_slots(a, b):
-    """Slot by slot on average colour: exact pixels would fail on the animated enchantment glint."""
+    """Slot by slot: average colour for the item, because exact pixels would fail on the animated
+    enchantment glint, and the count corner separately, because a digit barely moves the average."""
+    if not (menu_open(a) and menu_open(b)):
+        return False
     ia, ib = Image.open(a).convert("RGB"), Image.open(b).convert("RGB")
     left, top, _, bottom = slots_box(ia)
     for row in range((bottom - top) // 36):
@@ -93,16 +114,60 @@ def same_slots(a, b):
             ma, mb = ImageStat.Stat(ia.crop(box)).mean, ImageStat.Stat(ib.crop(box)).mean
             if max(abs(x - y) for x, y in zip(ma, mb)) > 12:
                 return False
+            if abs(count_pixels(ia, box) - count_pixels(ib, box)) > 6:
+                return False
     return True
 
 
 class Client:
-    def __init__(self, mc, shots):
-        self.inst = instance_for(mc)
+    def __init__(self, mc, shots, player=PLAYER, suffix=""):
+        self.inst = instance_for(mc, suffix)
+        self.player = player
         self.shots = shots
+        self.stalls = 0
+        self.mc = mc
+        self.download()
+
+    def download(self):
+        """--offline never downloads, so a version Prism has not cached stalls with no visible error.
+        One online launch fetches it. Runs before the test server is up, so nothing joins."""
+        jar = PRISM.parent / "libraries" / "com" / "mojang" / "minecraft" / self.mc / f"minecraft-{self.mc}-client.jar"
+        if jar.exists():
+            return
+        subprocess.run(["taskkill", "/F", "/IM", "prismlauncher.exe"], capture_output=True)
+        time.sleep(2)
+        subprocess.Popen([drive.PRISM, "--launch", self.inst], creationflags=0x8)
+        pat = drive.inst_pat(self.inst)
+        end = time.time() + 600
+        while time.time() < end:
+            time.sleep(3)
+            if drive.ps(f"$h = Get-MCWin '{pat}'; if ($h -ne [IntPtr]::Zero) {{ 'UP' }}") == "UP":
+                self.stop()
+                time.sleep(3)
+                return
+        raise RuntimeError(f"Prism could not download MC {self.mc}")
 
     def launch(self):
-        drive.main(["--instance", self.inst, "launch", "--offline", PLAYER])
+        """Prism aborts the first launch of a new instance while it fetches metadata, so retry."""
+        pat = drive.inst_pat(self.inst)
+        for _ in range(4):
+            subprocess.run(["taskkill", "/F", "/IM", "prismlauncher.exe"], capture_output=True)
+            time.sleep(2)
+            subprocess.Popen([drive.PRISM, "--launch", self.inst, "--offline", self.player], creationflags=0x8)
+            end = time.time() + 120
+            while time.time() < end:
+                time.sleep(3)
+                if drive.ps(f"$h = Get-MCWin '{pat}'; if ($h -ne [IntPtr]::Zero) {{ 'UP' }}") == "UP":
+                    x, y, w, h = drive.WIN_RECT
+                    drive.ps(f"$h = Get-MCWin '{pat}'; [SSK]::ShowWindow($h, 9) | Out-Null; "
+                             f"[SSK]::SetWindowPos($h, [IntPtr]::Zero, {x}, {y}, {w}, {h}, 0x0040) | Out-Null")
+                    return True
+            # Prism rotates its logs on every start, so keep the evidence of each stalled launch.
+            self.stalls += 1
+            log = PRISM.parent / "logs" / "PrismLauncher-0.log"
+            if log.exists():
+                shutil.copy(log, self.shots / f"prism-stall-{self.stalls}.log")
+        return False
 
     def stop(self):
         drive.main(["--instance", self.inst, "stop"])
@@ -152,8 +217,8 @@ def fixtures(r, mc):
     r(f'summon {chest_boat_id(mc)} 40.5 {Y} 0.5 {{LootTable:"{TABLE}",LootTableSeed:11L}}')
 
 
-def aim(r, x, pitch=33):
-    r(f"tp {PLAYER} {x} {Y} 2.5 180 {pitch}")
+def aim(r, x, pitch=33, player=PLAYER):
+    r(f"tp {player} {x} {Y} 2.5 180 {pitch}")
     time.sleep(0.7)
 
 
@@ -248,14 +313,25 @@ def stage_vehicles(r, c, out, mc):
                    "tag": "simple_dungeon" in r(f"data get entity @e[type={boat},limit=1] LootTable")}
 
 
+def open_and_snap(r, c, x, shot, out):
+    """A missed click is the harness's fault, not the mod's: re-aim once and record that it happened."""
+    for attempt in (1, 2):
+        aim(r, x)
+        c.click()
+        time.sleep(0.6)
+        path = c.snap(shot)
+        if menu_open(path):
+            return path
+        out.setdefault("reaimed", []).append(shot)
+        time.sleep(1)
+    return path
+
+
 def stage_persist(s, c, out):
     r = s.rcon
     shots = {}
     for name, x in (("chest", 0.5), ("barrel", 10.5)):
-        aim(r, x)
-        c.click()
-        time.sleep(0.6)
-        shots[name] = c.snap(f"persist-{name}-before")
+        shots[name] = open_and_snap(r, c, x, f"persist-{name}-before", out)
         c.key("esc")
         time.sleep(0.5)
     c.stop()
@@ -268,10 +344,7 @@ def stage_persist(s, c, out):
     r = s.rcon
     res = {}
     for name, x in (("chest", 0.5), ("barrel", 10.5)):
-        aim(r, x)
-        c.click()
-        time.sleep(0.6)
-        after = c.snap(f"persist-{name}-after")
+        after = open_and_snap(r, c, x, f"persist-{name}-after", out)
         res[name] = same_slots(shots[name], after)
         c.key("esc")
         time.sleep(0.5)
@@ -281,10 +354,11 @@ def stage_persist(s, c, out):
 
 def join(s, c):
     mark = len(s.text())
-    c.launch()
-    end = time.time() + 240
+    if not c.launch():
+        return False
+    end = time.time() + 120
     while time.time() < end:
-        if f"{PLAYER} joined" in s.text()[mark:]:
+        if f"{c.player} joined" in s.text()[mark:]:
             time.sleep(4)
             return True
         time.sleep(1)
@@ -317,7 +391,6 @@ def run_jar(band, loader, stages, jar):
         fixtures(s.rcon, mc)
         if not join(s, c):
             out["errors"] = ["client did not join"] + s.text().splitlines()[-3:]
-            c.snap("join-failed")
             return out
         if "cycles" in stages:
             stage_cycles(s.rcon, c, out)
@@ -356,11 +429,9 @@ def migrate(loader, source, target):
         s.start()
         s.rcon("forceload add -2 -4 16 8")
         s.rcon(f"setblock 0 {Y} 0 minecraft:chest[facing=south]{nbt_loot(TABLE, 1)}")
-        join(s, c)
-        aim(s.rcon, 0.5)
-        c.click()
-        time.sleep(0.6)
-        before = c.snap("before")
+        if not join(s, c):
+            raise SystemExit(f"client did not join the {source} server")
+        before = open_and_snap(s.rcon, c, 0.5, "before", out)
         c.key("esc")
         time.sleep(0.5)
         out["before"] = s.rcon("slashloot stats")
@@ -375,11 +446,9 @@ def migrate(loader, source, target):
         s.start()
         out["after"] = s.rcon("slashloot stats")
         out["store_survived"] = "blocks=1" in out["after"]
-        join(s, c)
-        aim(s.rcon, 0.5)
-        c.click()
-        time.sleep(0.6)
-        after = c.snap("after")
+        if not join(s, c):
+            raise SystemExit(f"client did not join the {target} server: {out}")
+        after = open_and_snap(s.rcon, c, 0.5, "after", out)
         out["has_items"], out["same_slots"] = has_items(after), same_slots(before, after)
         c.key("esc")
         out["store_errors"] = [l[:200] for l in s.text().splitlines() if "slashlootr" in l.lower() and "rror" in l][:4]
@@ -388,6 +457,42 @@ def migrate(loader, source, target):
         s.stop()
     print(json.dumps(out, indent=1), flush=True)
     return 0 if out["store_survived"] and out["has_items"] else 1
+
+
+def two_players():
+    """An occupied boat opens on a plain click, and two players on it each get their own copy."""
+    band, loader = "1.21.1", "fabric"
+    mc = primary_mc(band, loader)
+    shots = WORK / "shots" / "two-players"
+    shots.mkdir(parents=True, exist_ok=True)
+    s = Server(band, loader, mc, level="world-two-players")
+    a, b = Client(mc, shots), Client(mc, shots, "PCTester2", "-b")
+    out = {}
+    try:
+        s.start()
+        fixtures(s.rcon, mc)
+        if not (join(s, a) and join(s, b)):
+            raise SystemExit("clients did not join")
+        r = s.rcon
+        boat = chest_boat_id(mc)
+        r(f"ride {PLAYER} mount @e[type={boat},limit=1]")
+        time.sleep(1)
+        a.key("e")
+        time.sleep(0.8)
+        aim(r, 40.95, player=b.player)  # the hull beside the rider: a click on the rider misses the boat
+        b.click()
+        time.sleep(0.8)
+        shot_a, shot_b = a.snap("rider"), b.snap("second-player")
+        out["rider_has_items"], out["plain_click_opens_occupied_boat"] = has_items(shot_a), has_items(shot_b)
+        out["separate_copies"] = menu_open(shot_a) and menu_open(shot_b) and not same_slots(shot_a, shot_b)
+        out["copies"] = r("slashloot stats")
+        out["tag"] = "simple_dungeon" in r(f"data get entity @e[type={boat},limit=1] LootTable")
+    finally:
+        a.stop()
+        b.stop()
+        s.stop()
+    print(json.dumps(out, indent=1), flush=True)
+    return 0 if all(out.values()) and "player copies=2" in out["copies"] else 1
 
 
 def cleanup():
@@ -403,10 +508,14 @@ def main():
     ap.add_argument("--stages", default="cycles,vehicles,persist")
     ap.add_argument("--jar", help="test this jar instead of build/release, with exactly one band selected")
     ap.add_argument("--migrate", nargs=2, metavar=("BAND:VERSION", "BAND:VERSION"))
+    ap.add_argument("--resume", action="store_true", help="keep passes from the last client.json")
+    ap.add_argument("--two-players", action="store_true")
     ap.add_argument("--cleanup", action="store_true")
     args = ap.parse_args()
     if args.migrate:
         return migrate(args.loader or "fabric", *args.migrate)
+    if args.two_players:
+        return two_players()
     if args.cleanup:
         cleanup()
         return 0
@@ -414,7 +523,12 @@ def main():
     jars = [j for j in jars if (not args.only or j[0] in args.only) and (not args.loader or j[1] == args.loader)]
     RESULTS.mkdir(parents=True, exist_ok=True)
     results = []
+    if args.resume and (RESULTS / "client.json").exists():
+        results = [r for r in json.loads((RESULTS / "client.json").read_text()) if r.get("pass")]
+    done = {(r["band"], r["loader"]) for r in results}
     for band, loader in jars:
+        if (band, loader) in done:
+            continue
         out = run_jar(band, loader, args.stages.split(","), args.jar)
         bad = problems(out)
         out["pass"] = not bad

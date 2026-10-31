@@ -186,6 +186,11 @@ for versions the JARs refused to load on.
    cycles, vehicles, and slots across a restart. It needs the Minecraft window in the foreground, so
    the PC cannot be used meanwhile. `--cleanup` removes its instances.
 
+Tested on the newest NeoForge for each MC version, not the build pinned in `gradle.properties`, and
+the 1.21.6-1.21.9 NeoForge lines are betas. `--two-players` covers one chest boat shared by two
+clients. A version Prism has not cached gets one online launch first, signed in with Prism's default
+account, because `--offline` never downloads.
+
 `--migrate 1.21.4:<old> 1.21.5:<new>` on `client-matrix.py` checks that loot survives an upgrade. Keep
 old JARs in `<WORK>/old`. The save format is `{slot, item}` on every band: never let the stores drift.
 
@@ -229,6 +234,11 @@ A chest boat boards on a plain click, and opens on a sneak-click or the inventor
 - **Hoppers extract nothing** from naturally-generated containers SlashLoot instances (the world container is always empty). Matches Lootr. Blacklisted and unsupported containers are unaffected.
 - **Comparator output reads 0** from those same containers, for the same reason.
 - **No decay / re-roll** — per-player loot is permanent by design.
+- **Upgrading a world from 1.20.1 to 1.20.5+ flattens personal copies.** Measured: slots and items
+  survive, stack counts fall to 1. The rows are 1.20.1 item NBT (`Count`, `tag`), which newer
+  `ItemStack` parsing ignores, and the stores run no data fixer. Item enchantments in `tag` are
+  expected to go the same way, unmeasured. Fixing it needs a `DataFixer` call in both stores and a
+  seam for the data-version accessor.
 - **Prune skips unloaded chunks.** Entries for containers destroyed in chunks that never load again are not reclaimed; they are cheap and get dropped on the next pass that finds the chunk loaded.
 
 ## Repository

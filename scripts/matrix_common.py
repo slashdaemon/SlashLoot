@@ -63,7 +63,9 @@ def jar_path(band, loader, version=None):
 
 
 def java_for(mc):
-    return PRISM_JAVA / ("java-runtime-epsilon" if mc.startswith("26.") else "java-runtime-delta") / "bin" / "java.exe"
+    # Prism refuses to launch 1.20.1 on anything but Java 17; 26.x needs 25.
+    alias = "java-runtime-epsilon" if mc.startswith("26.") else "java-runtime-gamma" if mc == "1.20.1" else "java-runtime-delta"
+    return PRISM_JAVA / alias / "bin" / "java.exe"
 
 
 def get(url, dest=None):

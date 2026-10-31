@@ -27,8 +27,9 @@ Minecraft version it lists, and tested with a real vanilla client.
 - **NeoForge listings are now accurate.** The 1.21.1 jar never ran on 1.21, and the 1.21.3 jar never
   ran on 1.21.2: NeoForge refused to load them. Those versions are no longer listed.
 
-Saves from earlier versions load normally. Once a world has been saved by 0.3.1, going back to an
-earlier SlashLoot is not supported.
+Saves from earlier versions load normally, with two exceptions. Once a world has been saved by
+0.3.1, going back to an earlier SlashLoot is not supported. Upgrading a world from Minecraft 1.20.1 to
+1.20.5 or later keeps each player's items, but stacks already in their personal copies drop to 1.
 
 ## 0.3.0 — 2026-08-29
 
