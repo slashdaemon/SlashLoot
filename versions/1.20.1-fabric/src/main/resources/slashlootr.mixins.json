@@ -7,7 +7,7 @@
     "AccessorAbstractMinecartContainer",
     "AccessorChestBoat",
     "MixinRandomizableContainer",
-    "MixinAbstractMinecartContainer",
+    "MixinContainerEntity",
     "MixinChestBoat",
     "MixinEntityRemoved"
   ],
