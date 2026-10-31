@@ -4,7 +4,9 @@ All notable changes to SlashLootr. Dates are YYYY-MM-DD.
 
 ## 0.3.1 — 2026-10-31
 
-**Chests keep sounding like chests.** Thanks to **TheArchictect** on CurseForge for the report.
+**Containers that behave, and loot that stays put.** Thanks to **TheArchictect** on CurseForge for
+the report that started this. This is also the first release where every jar was started on every
+Minecraft version it lists, and tested with a real vanilla client.
 
 - **Sound and animation now play on every open.** Loot chests and barrels only opened properly the
   first time. After that they stayed silent and still until the block reloaded.
@@ -14,9 +16,19 @@ All notable changes to SlashLootr. Dates are YYYY-MM-DD.
   every player using the chest.
 - **Menus close when they should.** Walking out of range, or the chest being broken, now closes the
   menu as it does in vanilla.
+- **Items stay in their slots across restarts.** On Minecraft 1.21.4 and older, a player's loot
+  used to pack itself into the first slots each time the server restarted.
+- **Upgrading a world past 1.21.4 keeps everyone's loot.** The newer save format could not read the
+  older one, so all personal copies were silently discarded and re-rolled.
+- **Chest boats work like chest boats.** Clicking boards the boat again, and sneak-clicking or the
+  inventory key while riding opens your loot. Those two used to show an empty chest.
+- **Vehicle menus have proper titles**, such as "Oak Boat with Chest", instead of `container.chestBoat`.
 - **The 1.20.1 Fabric build starts again.** It crashed at startup in 0.2.0 and 0.3.0.
+- **NeoForge listings are now accurate.** The 1.21.1 jar never ran on 1.21, and the 1.21.3 jar never
+  ran on 1.21.2: NeoForge refused to load them. Those versions are no longer listed.
 
-Your saved loot and worlds are unaffected.
+Saves from earlier versions load normally. Once a world has been saved by 0.3.1, going back to an
+earlier SlashLoot is not supported.
 
 ## 0.3.0 — 2026-08-29
 

@@ -28,7 +28,7 @@ If you only want to use the mod, [`README.md`](../README.md) is enough. This doc
 
 ### The problem
 
-Vanilla Minecraft generates loot containers (chests in mineshafts, barrels in villages, shulker boxes in ancient cities, chest minecarts on rails, chest boats in shipwrecks…) with a **`LootTable` NBT tag** and a **`LootTableSeed`**. The first time anyone opens one, vanilla rolls the loot table into the container's inventory and clears the tag. Whoever's there first takes everything; everyone else opens an empty chest.
+Vanilla Minecraft generates loot containers (chests in mineshafts, barrels in villages, shulker boxes in ancient cities, chest minecarts on rails…) with a **`LootTable` NBT tag** and a **`LootTableSeed`**. The first time anyone opens one, vanilla rolls the loot table into the container's inventory and clears the tag. Whoever's there first takes everything; everyone else opens an empty chest.
 
 On a multiplayer server, this is a race. The mod [Lootr](https://github.com/LootrMinecraft/Lootr) solves it by giving each player their own copy of the loot — but it does so by **registering custom block variants** (`LootrChestBlock`, `LootrBarrelBlock`, etc.) and swapping the vanilla block-state at the container's position. That swap:
 
@@ -99,7 +99,9 @@ If we **cancel** `unpackLootTable` server-side:
 
 ### Entity containers
 
-The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. Since MC 1.20.5 these all implement `ContainerEntity` (interface) and the relevant method is `ContainerEntity#unpackChestVehicleLootTable(Player)`. In MC 1.20.1 there's no shared interface — `AbstractMinecartContainer` and `ChestBoat` each have their own `unpackLootTable(Player)` method.
+The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. They all implement `ContainerEntity`, and the relevant method is its default `unpackChestVehicleLootTable(Player)`. That holds on every band including 1.20.1. Vanilla never generates chest boats with loot, so those only come from commands, datapacks and other mods, but they still have to work.
+
+A chest boat has one click path vanilla does not share with minecarts: a plain click boards it, and only a sneak-click (or a click when the seat is taken) opens it. A rider opens it with the inventory key, which arrives through `openCustomInventoryScreen` with no click at all, so `MixinChestBoatInventory` covers that path. Its target class differs by band, so it lives in `compat/vehicle-*`.
 
 ---
 
@@ -575,8 +577,8 @@ the quarantine.
 ported by hand. 1.20.1:
 
 - has **no `RandomizableContainer` interface** - the mixin targets `RandomizableContainerBlockEntity`
-- has **no `ContainerEntity` interface** - minecarts and chest boats are unrelated types, needing
-  separate mixins on `AbstractMinecartContainer` and `ChestBoat`
+- loot tables are `ResourceLocation`s in private fields on each vehicle class, which need separate
+  `@Accessor` mixins on `AbstractMinecartContainer` and `ChestBoat`
 - stores loot tables as **`ResourceLocation`**, not `ResourceKey<LootTable>`
 - keeps those fields **private**, so reads go through `@Accessor` mixins
 - resolves tables via `MinecraftServer#getLootData()` rather than `reloadableRegistries()`

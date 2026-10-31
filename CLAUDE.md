@@ -119,6 +119,8 @@ the same contract and the same reason strings, so the port is mechanical.
 **NeoForge coverage differs from Fabric, for reasons outside our control:**
 
 - NeoForge has no 1.20.1 outside the legacy MDG plugin, and no 1.20.5 line, so it starts at 1.20.6.
+- MC 1.21 (NeoForge 21.0) and MC 1.21.2 (NeoForge 21.2) are not covered: `neoforge_range` on the
+  neighbouring JARs refuses to load there, confirmed by booting them.
 - NeoForge 21.6, 21.7 and 21.9 have **no stable builds at all** — every published `21.6.x` /
   `21.9.x` is a `-beta` (checked against `maven.neoforged.net`). MC 1.21.6–1.21.8 ride the 21.8
   build, and 1.21.9–1.21.10 ride the 21.10 build.
@@ -132,9 +134,9 @@ the same contract and the same reason strings, so the port is mechanical.
 | 1.20.6-neoforge | N | 1.20.6 | location | legacy | nbt | — | player |
 | 1.21-fabric | F | 1.21 | location | legacy | nbt | — | player |
 | 1.21.1-fabric | F | 1.21.1 | location | legacy | nbt | — | player |
-| 1.21.1-neoforge | N | 1.21–1.21.1 | location | legacy | nbt | — | player |
+| 1.21.1-neoforge | N | 1.21.1 | location | legacy | nbt | — | player |
 | 1.21.2-fabric | F | 1.21.2–1.21.3 | location | container | nbt | — | player |
-| 1.21.3-neoforge | N | 1.21.2–1.21.3 | location | container | nbt | — | player |
+| 1.21.3-neoforge | N | 1.21.3 | location | container | nbt | — | player |
 | 1.21.4-fabric / -neoforge | F+N | 1.21.4 | location | container | nbt | — | player |
 | 1.21.5-fabric / -neoforge | F+N | 1.21.5 | location | container | codec | string | player |
 | 1.21.6-fabric | F | 1.21.6–1.21.8 | location | container | codec | string | player |
@@ -171,9 +173,21 @@ widely-circulated matrices claim stable NeoForge exists for 21.6 / 21.9; it does
 
 ## Verification
 
-**Build gate:** `./gradlew buildAll` must collect 22 JARs into `build/release/`. Compiling does not
-prove a band starts: a mixin aimed at a missing method only fails at boot, which is how the 1.20.1
-JAR shipped crashing in 0.2.0 and 0.3.0. Boot any band whose mixins changed.
+**Release gates, all three, before every publish.** Compiling proves little: 0.3.0 passed the build
+gate with a 1.20.1 JAR that crashed at boot, chest boats that opened empty, and NeoForge listings
+for versions the JARs refused to load on.
+
+1. `./gradlew buildAll` collects 22 `<version>` JARs into `build/release/` (older versions stay in
+   the folder too; the publish scripts filter by version).
+2. `python scripts/boot-matrix.py` boots every advertised (JAR, MC) pair, read from
+   `BAND_GAME_VERSIONS`, and runs the headless sweep below on each. No client, no foreground needed.
+   Adding a version to that table adds it to the gate.
+3. `python scripts/client-matrix.py` drives every JAR with a plain vanilla Prism client: opener
+   cycles, vehicles, and slots across a restart. It needs the Minecraft window in the foreground, so
+   the PC cannot be used meanwhile. `--cleanup` removes its instances.
+
+`--migrate 1.21.4:<old> 1.21.5:<new>` on `client-matrix.py` checks that loot survives an upgrade. Keep
+old JARs in `<WORK>/old`. The save format is `{slot, item}` on every band: never let the stores drift.
 
 **Headless functional pass** (no client needed — a hopper under a container triggers
 `unpackLootTable`, which is the exact path the mixins hook). Boot a bare Fabric server with the
@@ -208,6 +222,7 @@ install — `./gradlew :versions:1.21.1-neoforge:runServer`, with `run/eula.txt`
 7. Place a player-crafted chest → no interception
 
 Repeat for: trapped chest, barrel, shulker box, chest minecart, double chest (both lids), chest boat.
+A chest boat boards on a plain click, and opens on a sneak-click or the inventory key while riding.
 
 ## Known limitations
 
