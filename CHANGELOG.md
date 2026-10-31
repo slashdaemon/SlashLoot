@@ -2,6 +2,22 @@
 
 All notable changes to SlashLootr. Dates are YYYY-MM-DD.
 
+## 0.3.1 — 2026-10-31
+
+**Chests keep sounding like chests.** Thanks to **TheArchictect** on CurseForge for the report.
+
+- **Sound and animation now play on every open.** Loot chests and barrels only opened properly the
+  first time. After that they stayed silent and still until the block reloaded.
+- **Lids stay open while the menu is open.** They used to shut after a quarter of a second, with the
+  close sound playing over the open one. Barrels had the same problem.
+- **Trapped chests hold their redstone signal** for as long as somebody has them open, and it counts
+  every player using the chest.
+- **Menus close when they should.** Walking out of range, or the chest being broken, now closes the
+  menu as it does in vanilla.
+- **The 1.20.1 Fabric build starts again.** It crashed at startup in 0.2.0 and 0.3.0.
+
+Your saved loot and worlds are unaffected.
+
 ## 0.3.0 — 2026-08-29
 
 **Built to sit inside somebody else's modpack.** Almost everything here is SlashLoot learning to do

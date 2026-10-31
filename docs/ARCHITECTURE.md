@@ -135,6 +135,14 @@ real world container. Vanilla's `ContainerOpenersCounter` therefore runs normall
 lids animate, barrels flip their `open` blockstate, and trapped chests emit redstone. Vanilla's
 `CompoundContainer` forwards both calls to each half, so double chests need no special handling.
 
+Forwarding alone is not enough. The counter rechecks itself 5 ticks after an open, counting players
+whose open `ChestMenu#getContainer()` is the block entity, and it fires open and close effects only
+when the count crosses exactly zero. So chest-style menus are a `LootChestMenu`, whose slots use the
+personal container but whose `getContainer()` reports the world container (a `CompoundContainer` of
+both block entities for a double chest). `LootContainerBase#stillValid` forwards too, so a player who
+leaves range is closed out rather than silently dropped from the count. Before 0.3.1 the recheck
+zeroed the count with the GUI open, the real close took it to -1, and every later open was silent.
+
 With delegation on (the default) vanilla plays the open sound itself, so the mod's manual
 `OpenSoundFx` is suppressed — otherwise it would play twice.
 

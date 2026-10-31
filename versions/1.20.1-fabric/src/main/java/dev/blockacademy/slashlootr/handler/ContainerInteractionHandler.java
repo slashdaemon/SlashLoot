@@ -38,6 +38,9 @@ import net.minecraft.world.phys.BlockHitResult;
  */
 public class ContainerInteractionHandler implements UseBlockCallback {
 
+    /** What a menu shows, and the world container it answers for (null with delegation off). */
+    private record Opened(Container personal, Container world) {}
+
     @Override
     public InteractionResult interact(Player player, Level world, InteractionHand hand, BlockHitResult hit) {
         if (world.isClientSide()) return InteractionResult.PASS;
@@ -61,10 +64,9 @@ public class ContainerInteractionHandler implements UseBlockCallback {
         }
 
         BlockState state = level.getBlockState(pos);
-        Container backing = buildPerPlayerContainer(level, pos, state, be, sp, decision);
-        if (backing == null) return InteractionResult.PASS;
+        Opened opened = buildPerPlayerContainer(level, pos, state, be, sp, decision);
 
-        sp.openMenu(decision.kind().menuProvider(backing));
+        sp.openMenu(decision.kind().menuProvider(opened.personal(), opened.world()));
 
         // With delegation on, vanilla's ContainerOpenersCounter already played the open sound.
         SlashLootrConfig config = SlashLootrConfig.get();
@@ -74,7 +76,7 @@ public class ContainerInteractionHandler implements UseBlockCallback {
         return InteractionResult.SUCCESS;
     }
 
-    private static Container buildPerPlayerContainer(
+    private static Opened buildPerPlayerContainer(
             ServerLevel level,
             BlockPos pos,
             BlockState state,
@@ -86,7 +88,8 @@ public class ContainerInteractionHandler implements UseBlockCallback {
         boolean delegate = SlashLootrConfig.get().delegateContainerAnimation;
 
         if (decision.kind() != ContainerKind.DOUBLE_CHEST) {
-            return getOrRoll(store, level, pos, be, sp, decision.slots(), delegate);
+            return new Opened(
+                    getOrRoll(store, level, pos, be, sp, decision.slots(), delegate), worldView(be, delegate));
         }
 
         Direction connected = ChestBlock.getConnectedDirection(state);
@@ -94,7 +97,7 @@ public class ContainerInteractionHandler implements UseBlockCallback {
         BlockEntity otherBe = level.getBlockEntity(otherPos);
         if (!(otherBe instanceof ChestBlockEntity) || !(otherBe instanceof RandomizableContainerBlockEntity)) {
             int half = Math.max(1, decision.slots() / 2);
-            return getOrRoll(store, level, pos, be, sp, half, delegate);
+            return new Opened(getOrRoll(store, level, pos, be, sp, half, delegate), worldView(be, delegate));
         }
 
         // Canonical ordering so the two halves never swap between openings.
@@ -108,7 +111,15 @@ public class ContainerInteractionHandler implements UseBlockCallback {
 
         LootContainer firstC = getOrRoll(store, level, first, firstBe, sp, firstSlots, delegate);
         LootContainer secondC = getOrRoll(store, level, second, secondBe, sp, secondSlots, delegate);
-        return new CompoundContainer(firstC, secondC);
+        Container firstWorld = worldView(firstBe, delegate);
+        Container secondWorld = worldView(secondBe, delegate);
+        return new Opened(
+                new CompoundContainer(firstC, secondC),
+                firstWorld != null && secondWorld != null ? new CompoundContainer(firstWorld, secondWorld) : null);
+    }
+
+    private static Container worldView(BlockEntity be, boolean delegate) {
+        return delegate && be instanceof Container c ? c : null;
     }
 
     private static LootContainer getOrRoll(

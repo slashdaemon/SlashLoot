@@ -59,6 +59,7 @@ SlashLootr/
 │       ├── loader/LoaderBridge.java    the ONLY Fabric/NeoForge seam
 │       ├── core/Handling.java          THE decision function (read this first)
 │       ├── core/LootContainerBase.java dirty tracking + open/close delegation
+│       ├── core/LootChestMenu.java     reports the world container to vanilla's opener recheck
 │       ├── core/{ContainerKind,LootRoller,OpenSoundFx,DebugLog}.java
 │       ├── handler/{ContainerInteraction,EntityInteraction,Cleanup}Handler.java
 │       ├── command/SlashLootCommand.java
@@ -170,7 +171,9 @@ widely-circulated matrices claim stable NeoForge exists for 21.6 / 21.9; it does
 
 ## Verification
 
-**Build gate:** `./gradlew buildAll` must collect 22 JARs into `build/release/`.
+**Build gate:** `./gradlew buildAll` must collect 22 JARs into `build/release/`. Compiling does not
+prove a band starts: a mixin aimed at a missing method only fails at boot, which is how the 1.20.1
+JAR shipped crashing in 0.2.0 and 0.3.0. Boot any band whose mixins changed.
 
 **Headless functional pass** (no client needed — a hopper under a container triggers
 `unpackLootTable`, which is the exact path the mixins hook). Boot a bare Fabric server with the
@@ -196,7 +199,10 @@ install — `./gradlew :versions:1.21.1-neoforge:runServer`, with `run/eula.txt`
 1. `/locate structure minecraft:mineshaft` → dig to a chest → `/data get block ~ ~ ~ LootTable` shows a table id
 2. Player A opens it → notes items; Player B opens → **different items**; A re-opens → same as before
 3. Restart the server → both players' loot persists; the `LootTable` tag is still on the block
-4. Lid animates on open, and the open sound plays **once**
+4. Hold the menu open for a second, close it, and repeat at least three times: every open plays the
+   open sound **once**, the lid stays open until the menu closes, and the close sound plays once.
+   A quick open-and-close beats vanilla's 5-tick recheck and hides opener-count bugs. With subtitles
+   on, or a barrel's `open` state and a trapped chest's lamp polled over RCON, this needs no ears.
 5. Redstone lamp beside a natural **trapped** chest powers while open
 6. Break the chest → `/slashloot stats` block count drops by one
 7. Place a player-crafted chest → no interception

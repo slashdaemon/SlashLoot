@@ -2,6 +2,7 @@ package dev.blockacademy.slashlootr.core;
 
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * A player's personal copy of a naturally-generated container's loot: everything except the
@@ -18,6 +19,11 @@ import net.minecraft.world.SimpleContainer;
  *       their {@code open} blockstate, and trapped chests emit redstone again. Vanilla's
  *       {@code CompoundContainer} forwards both calls to each half, so double chests work for free.
  * </ul>
+ *
+ * <p>Delegation only stays balanced if vanilla counts the player as an opener, which is what
+ * {@link LootChestMenu} and {@link #stillValid} are for. {@code SimpleContainer} is valid forever, so
+ * without the override a player could walk out of range with the menu open: vanilla's recheck would
+ * drop them from the count, and the eventual close would take it below zero.
  *
  * <p>The delegate is set immediately before the menu opens and cleared on close, so a stale
  * BlockEntity reference is never held across a chunk unload.
@@ -49,6 +55,12 @@ public abstract class LootContainerBase extends SimpleContainer {
         Container d = this.delegate;
         this.delegate = null;
         return d;
+    }
+
+    /** Same range and same-block checks as the world container, while one is open. */
+    @Override
+    public boolean stillValid(Player player) {
+        return delegate == null || delegate.stillValid(player);
     }
 
     @Override

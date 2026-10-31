@@ -40,6 +40,12 @@ public class LootContainer extends SimpleContainer {
         if (onDirty != null) onDirty.run();
     }
 
+    /** Same range and same-block checks as the world container, while one is open. */
+    @Override
+    public boolean stillValid(Player player) {
+        return delegate == null || delegate.stillValid(player);
+    }
+
     @Override
     public void startOpen(Player player) {
         Container d = this.delegate;

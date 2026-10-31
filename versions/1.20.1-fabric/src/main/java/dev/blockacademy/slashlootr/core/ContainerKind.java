@@ -42,6 +42,14 @@ public enum ContainerKind {
     }
 
     public MenuProvider menuProvider(Container container) {
+        return menuProvider(container, null);
+    }
+
+    /**
+     * @param worldView the real world container behind {@code container}, or null if there is none
+     *     to report. See {@link LootChestMenu} for why chest-style menus need it.
+     */
+    public MenuProvider menuProvider(Container container, Container worldView) {
         Component title = Component.translatable(translationKey);
         int slots = container.getContainerSize();
 
@@ -70,6 +78,8 @@ public enum ContainerKind {
             default -> MenuType.GENERIC_9x3;
         };
         int finalRows = rows;
-        return new SimpleMenuProvider((id, inv, p) -> new ChestMenu(type, id, inv, container, finalRows), title);
+        return new SimpleMenuProvider((id, inv, p) -> worldView != null
+                ? new LootChestMenu(type, id, inv, container, finalRows, worldView)
+                : new ChestMenu(type, id, inv, container, finalRows), title);
     }
 }

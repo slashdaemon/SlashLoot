@@ -36,6 +36,9 @@ import net.minecraft.world.phys.BlockHitResult;
  */
 public final class ContainerInteractionHandler {
 
+    /** What a menu shows, and the world container it answers for (null with delegation off). */
+    private record Opened(Container personal, Container world) {}
+
     private ContainerInteractionHandler() {}
 
     public static InteractionResult interact(
@@ -60,10 +63,9 @@ public final class ContainerInteractionHandler {
         }
 
         BlockState state = level.getBlockState(pos);
-        Container backing = buildPerPlayerContainer(level, pos, state, be, player, decision);
-        if (backing == null) return InteractionResult.PASS;
+        Opened opened = buildPerPlayerContainer(level, pos, state, be, player, decision);
 
-        player.openMenu(decision.kind().menuProvider(backing));
+        player.openMenu(decision.kind().menuProvider(opened.personal(), opened.world()));
 
         // With delegation on, vanilla's ContainerOpenersCounter already played the open sound.
         SlashLootrConfig config = SlashLootrConfig.get();
@@ -78,7 +80,7 @@ public final class ContainerInteractionHandler {
      * {@link CompoundContainer} over both halves' personal containers — which also means vanilla
      * forwards {@code startOpen}/{@code stopOpen} to both halves, so both lids animate.
      */
-    private static Container buildPerPlayerContainer(
+    private static Opened buildPerPlayerContainer(
             ServerLevel level,
             BlockPos pos,
             BlockState state,
@@ -90,7 +92,8 @@ public final class ContainerInteractionHandler {
         boolean delegate = SlashLootrConfig.get().delegateContainerAnimation;
 
         if (decision.kind() != ContainerKind.DOUBLE_CHEST) {
-            return getOrRoll(store, level, pos, be, player, decision.slots(), delegate);
+            return new Opened(
+                    getOrRoll(store, level, pos, be, player, decision.slots(), delegate), worldView(be, delegate));
         }
 
         Direction connected = ChestBlock.getConnectedDirection(state);
@@ -99,7 +102,7 @@ public final class ContainerInteractionHandler {
         if (!(otherBe instanceof ChestBlockEntity) || !(otherBe instanceof RandomizableContainer)) {
             // Other half gone or not a chest — serve this half alone rather than a broken menu.
             int half = Math.max(1, decision.slots() / 2);
-            return getOrRoll(store, level, pos, be, player, half, delegate);
+            return new Opened(getOrRoll(store, level, pos, be, player, half, delegate), worldView(be, delegate));
         }
 
         // Canonical ordering so the two halves never swap between openings.
@@ -113,7 +116,15 @@ public final class ContainerInteractionHandler {
 
         LootContainer firstC = getOrRoll(store, level, first, firstBe, player, firstSlots, delegate);
         LootContainer secondC = getOrRoll(store, level, second, secondBe, player, secondSlots, delegate);
-        return new CompoundContainer(firstC, secondC);
+        Container firstWorld = worldView(firstBe, delegate);
+        Container secondWorld = worldView(secondBe, delegate);
+        return new Opened(
+                new CompoundContainer(firstC, secondC),
+                firstWorld != null && secondWorld != null ? new CompoundContainer(firstWorld, secondWorld) : null);
+    }
+
+    private static Container worldView(BlockEntity be, boolean delegate) {
+        return delegate && be instanceof Container c ? c : null;
     }
 
     private static LootContainer getOrRoll(
