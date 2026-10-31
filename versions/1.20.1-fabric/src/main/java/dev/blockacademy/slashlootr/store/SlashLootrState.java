@@ -5,6 +5,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.HashMap;
@@ -16,8 +17,9 @@ import java.util.UUID;
  * have opened. Persisted at {@code world/<dim>/data/slashlootr.dat}.
  *
  * <p>MC 1.20.1 flavour: the three-arg {@code computeIfAbsent} and a {@code save(CompoundTag)} with
- * no {@code HolderLookup.Provider}. Same public API and same on-disk shape as every other band, so
- * the shared handlers would work verbatim here and existing saves migrate untouched.
+ * no {@code HolderLookup.Provider}. Same public API as every other band, so the shared handlers
+ * would work verbatim here. Same {@code {slot, item}} rows too, though the item inside each one is in
+ * the pre-1.20.5 format.
  */
 public class SlashLootrState extends SavedData {
     private static final String STATE_ID = "slashlootr";
@@ -128,10 +130,38 @@ public class SlashLootrState extends SavedData {
             CompoundTag row = new CompoundTag();
             row.putUUID("uuid", e.getKey());
             row.putInt("size", e.getValue().getContainerSize());
-            row.put("items", e.getValue().createTag());
+            row.put("items", saveItems(e.getValue()));
             list.add(row);
         }
         return list;
+    }
+
+    private static ListTag saveItems(LootContainer container) {
+        ListTag items = new ListTag();
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty()) continue;
+            CompoundTag row = new CompoundTag();
+            row.putInt("slot", slot);
+            row.put("item", stack.save(new CompoundTag()));
+            items.add(row);
+        }
+        return items;
+    }
+
+    /** Rows from before 0.3.1 are bare items with no slot, and load in order. */
+    private static void loadItems(LootContainer container, ListTag items) {
+        for (int i = 0; i < items.size(); i++) {
+            CompoundTag row = items.getCompound(i);
+            if (!row.contains("item")) {
+                container.addItem(ItemStack.of(row));
+                continue;
+            }
+            int slot = row.getInt("slot");
+            if (slot >= 0 && slot < container.getContainerSize()) {
+                container.setItem(slot, ItemStack.of(row.getCompound("item")));
+            }
+        }
     }
 
     private static void loadPlayers(PlayerLootEntry target, ListTag list) {
@@ -139,7 +169,7 @@ public class SlashLootrState extends SavedData {
             CompoundTag row = list.getCompound(i);
             int size = row.getInt("size");
             LootContainer container = target.newContainer(size > 0 ? size : 27);
-            container.fromTag(row.getList("items", Tag.TAG_COMPOUND));
+            loadItems(container, row.getList("items", Tag.TAG_COMPOUND));
             target.put(row.getUUID("uuid"), container);
         }
     }
