@@ -72,7 +72,7 @@ NeoForge coverage differs slightly: NeoForge has no 1.20.5 line of its own, and 
 | 1.21.11 | Fabric / NeoForge | 0.141.2+1.21.11 |
 | 26.1.2 | Fabric / NeoForge | 0.146.1+26.1.2 |
 | 26.2 | Fabric / NeoForge | 0.158.0+26.2 |
-| 26.3 | Fabric / NeoForge (beta) | 0.161.0+26.3 |
+| 26.3 | Fabric / NeoForge | 0.161.0+26.3 |
 
 ## Configuration
 

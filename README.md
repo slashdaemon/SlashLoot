@@ -31,7 +31,7 @@ builds for 21.6 / 21.7 / 21.9 — MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are co
 
 The 26.1, 26.2 and 26.3 bands are quarantined builds with their own Gradle wrapper, JDK 25, and
 Loom (Gradle 9.4 + Loom 1.15.5 for 26.1/26.2, Gradle 9.6 + Loom 1.17.21 for 26.3), because Mojang
-ships 26.x unobfuscated. NeoForge 26.3 is still beta-only, so that JAR is published as beta.
+ships 26.x unobfuscated.
 
 | Minecraft | Loader | Fabric API (Fabric only) |
 | --------- | ------ | ------------------------ |
@@ -53,7 +53,7 @@ ships 26.x unobfuscated. NeoForge 26.3 is still beta-only, so that JAR is publis
 | 1.21.11 | Fabric / NeoForge | 0.141.2+1.21.11 |
 | 26.1.2 | Fabric / NeoForge | 0.146.1+26.1.2 |
 | 26.2 | Fabric / NeoForge | 0.158.0+26.2 |
-| 26.3 | Fabric / NeoForge (beta) | 0.161.0+26.3 |
+| 26.3 | Fabric / NeoForge | 0.161.0+26.3 |
 
 Fabric builds need Fabric API at the listed version. NeoForge builds need nothing beyond NeoForge itself.
 
