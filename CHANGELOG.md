@@ -2,7 +2,7 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
-## 0.5.3 — unreleased
+## 0.5.3 — 2026-11-01
 
 **Containers that behave, and loot that stays put.** Thanks to **TheArchictect** on CurseForge for
 the report that started this.
@@ -14,8 +14,9 @@ the report that started this.
 - **Trapped chests hold their redstone signal** for as long as somebody has them open, and it counts
   every player using the chest.
 - **Items stay in their slots across restarts.** On Minecraft 1.21.4 and older, a player's loot
-  used to pack itself into the first slots each time the server restarted. Loot already compacted
-  by an earlier version stays where it is, because those saves never recorded the original slots.
+  used to pack itself into the first slots each time the server restarted. Loot saved by an earlier
+  version packs up one last time when you update, because those saves never recorded the original
+  slots. Nothing is lost, and from then on it stays put.
 - **Upgrading a world past 1.21.4 keeps everyone's loot.** The newer save format could not read the
   older one, so all personal copies were silently discarded and re-rolled.
 - **Chest boats work like chest boats.** Clicking boards the boat again, and sneak-clicking or the
@@ -23,6 +24,39 @@ the report that started this.
 - **Vehicle menus have proper titles**, such as "Oak Boat with Chest", as in vanilla.
 - **NeoForge listings are now accurate.** The 1.21.1 jar never ran on 1.21, and the 1.21.3 jar never
   ran on 1.21.2: NeoForge refused to load them. Those versions are no longer listed.
+- **NeoForge 26.3 is now a full release.** It was marked beta only because NeoForge was.
+
+**Before you update**
+
+- Going back to an earlier SlashLoot after running this one is not supported.
+- Moving a world from Minecraft 1.20.1 to 1.20.5 or newer keeps every item in its slot, but stacks in
+  personal copies drop to 1. Enchantments on those items may be lost too, though that was not
+  measured.
+
+**What was tested**
+
+- **Every file on a real server:** all 25 files started on every Minecraft version they are listed
+  for, 34 combinations from 1.20.1 to 26.3, including the Forge file on NeoForge 1.20.1.
+- **Every file with a real, unmodified game client:** 26 runs covering all 25 files, plus the Forge
+  file on NeoForge 1.20.1. Each run covered three open-and-close cycles on trapped chests, double
+  trapped chests and barrels, then single chests, double chests, shulker boxes, chest minecarts,
+  hopper minecarts, chest boats (boarding, sneak-click and the inventory key), and slots across a
+  server restart.
+- **Singleplayer:** all 13 Fabric files in a real game client's built-in server.
+- **The shipped Forge file** on installer-built Forge and NeoForge 1.20.1 servers.
+- **The bug itself:** the same run against the published 0.5.2 reproduced the silent chests and the
+  broken boats.
+- **Two players on one chest boat** (Fabric 1.21.1): each gets their own copy.
+- **Upgrading a world with loot in it:** 0.5.2 to 0.5.3 on Fabric 1.20.1, 1.21.1 and 1.21.5, Forge
+  1.20.1 and NeoForge 1.21.1, plus 0.3.0 to 0.5.3 on Fabric 1.21.1 (the old file names), Minecraft
+  1.21.4 to 1.21.5, and Minecraft 1.20.1 to 1.20.5. Each kept the loot through a second restart.
+
+**Not tested**
+
+- Alongside other server-side mods.
+- Loot in naturally generated structures. Test containers carried the same loot data worldgen
+  writes, but no structure was explored.
+- Loader builds other than the ones tested, and game versions released after this one.
 
 ## 0.5.2 — 2026-10-02
 

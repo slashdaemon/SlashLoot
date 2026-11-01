@@ -280,6 +280,11 @@ def stage_vehicles(r, c, out, mc):
         path = open_vehicle(r, c, x, name, c.click)
         c.key("esc")
         time.sleep(0.5)
+        # A dropped key leaves this menu up, and the next vehicle's click lands inside it.
+        if menu_open(c.snap("menu-closed")):
+            out.setdefault("reclosed", []).append(name)
+            c.key("esc")
+            time.sleep(0.5)
         out[name] = {"copy_made": before != r("slashloot stats"),
                      "tag": "simple_dungeon" in r(f"data get entity @e[type={kind},limit=1] LootTable"),
                      "shot": path.name}
@@ -340,7 +345,9 @@ def stage_persist(s, c, out):
     if not s.start():
         out["persist"] = {"restart": False}
         return
-    join(s, c)
+    if not join(s, c, out):
+        out["persist"] = {"rejoin": False}
+        return
     r = s.rcon
     res = {}
     for name, x in (("chest", 0.5), ("barrel", 10.5)):
@@ -352,16 +359,33 @@ def stage_persist(s, c, out):
     out["persist"] = res
 
 
-def join(s, c):
-    mark = len(s.text())
-    if not c.launch():
-        return False
-    end = time.time() + 120
-    while time.time() < end:
-        if f"{c.player} joined" in s.text()[mark:]:
-            time.sleep(4)
-            return True
-        time.sleep(1)
+def stuck_connecting(path):
+    """The dirt connect screen: 1.20.1 clients can hang here after the server has logged the join."""
+    px = list(Image.open(path).convert("RGB").crop((0, 0, 400, 30)).get_flattened_data())
+    return sum(p[0] for p in px) > sum(p[2] for p in px) * 1.2
+
+
+def join(s, c, out=None):
+    """A vanilla client that hangs while connecting says nothing about the mod, so relaunch once and record it."""
+    for attempt in (1, 2):
+        if attempt == 2:
+            c.stop()
+            time.sleep(3)
+            if out is not None:
+                out.setdefault("rejoined", []).append(c.player)
+        mark = len(s.text())
+        if not c.launch():
+            continue
+        end = time.time() + 120
+        while time.time() < end and f"{c.player} joined" not in s.text()[mark:]:
+            time.sleep(1)
+        if f"{c.player} joined" not in s.text()[mark:]:
+            continue
+        for _ in range(12):
+            time.sleep(3)
+            if not stuck_connecting(c.snap("join")):
+                time.sleep(2)
+                return True
     return False
 
 
@@ -389,7 +413,7 @@ def run_jar(band, loader, stages, jar):
             return out
         out["neoforge"] = getattr(s, "nf_version", None)
         fixtures(s.rcon, mc)
-        if not join(s, c):
+        if not join(s, c, out):
             out["errors"] = ["client did not join"] + s.text().splitlines()[-3:]
             return out
         if "cycles" in stages:
@@ -420,7 +444,7 @@ def migrate(loader, source, target):
                  for d in (RELEASE, WORK / "old") for name in ("slashloot", "slashlootr")]
         return band, primary_mc(band, loader), next(p for p in found if p.exists())
 
-    shots = WORK / "shots" / f"migrate-{source}-{target}".replace(":", "_")
+    shots = WORK / "shots" / f"migrate-{loader}-{source}-{target}".replace(":", "_")
     shots.mkdir(parents=True, exist_ok=True)
     level = "world-migrate"
     shutil.rmtree(WORK / "fabric" / level, ignore_errors=True)
@@ -453,12 +477,23 @@ def migrate(loader, source, target):
         after = open_and_snap(s.rcon, c, 0.5, "after", out)
         out["has_items"], out["same_slots"] = has_items(after), same_slots(before, after)
         c.key("esc")
+        time.sleep(0.5)
+        # The target's own save must then hold still: a legacy read is compacted once, never again.
+        c.stop()
+        s.rcon("save-all flush")
+        s.stop()
+        s.start()
+        if not join(s, c, out):
+            raise SystemExit(f"client did not rejoin the {target} server: {out}")
+        again = open_and_snap(s.rcon, c, 0.5, "after-restart", out)
+        out["stable_after_restart"] = same_slots(after, again)
+        c.key("esc")
         out["store_errors"] = [l[:200] for l in s.text().splitlines() if "slashloot" in l.lower() and "rror" in l][:4]
     finally:
         c.stop()
         s.stop()
     print(json.dumps(out, indent=1), flush=True)
-    return 0 if out["store_survived"] and out["has_items"] else 1
+    return 0 if out["store_survived"] and out["has_items"] and out["stable_after_restart"] and not out["store_errors"] else 1
 
 
 def two_players():

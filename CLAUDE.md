@@ -153,8 +153,8 @@ the same contract and the same reason strings, so the port is mechanical.
 - NeoForge 21.6, 21.7 and 21.9 have **no stable builds at all** — every published `21.6.x` /
   `21.9.x` is a `-beta` (checked against `maven.neoforged.net`). MC 1.21.6–1.21.8 ride the 21.8
   build, and 1.21.9–1.21.10 ride the 21.10 build.
-- **NeoForge 26.3 is beta-only** (`26.3.0.x-beta`). The publish scripts force that JAR to `beta`
-  through `BETA_ONLY_BANDS`; drop the entry and re-pin once a stable 26.3 build lands.
+- `BETA_ONLY_BANDS` in the publish scripts forces a JAR built on a beta-only loader to `beta`. It is
+  empty now that NeoForge 26.3 has stable builds; re-add an entry when a new band starts on a beta.
 - **1.21.5 is its own band on both loaders.** `SavedData.Factory` was removed at 1.21.5, not 1.21.6
   — the 1.21.4 JAR cannot run there, though 0.1.x advertised it for exactly that.
 

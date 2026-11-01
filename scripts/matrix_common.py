@@ -198,6 +198,7 @@ class Rcon:
 
 PROPS = """online-mode=false
 enforce-secure-profile=false
+white-list=false
 level-name={level}
 level-type=minecraft\\:flat
 difficulty=peaceful
