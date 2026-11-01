@@ -50,7 +50,7 @@ That's it. Clients connect with an unmodified game — nothing to install on the
 
 **Forge is 1.20.1 only.** The same `-forge` JAR also runs on NeoForge 1.20.1, so 1.20.1 NeoForge servers use it too.
 
-NeoForge coverage differs slightly: NeoForge has no 1.20.5 line of its own, and no stable 21.6 / 21.7 / 21.9 builds, so MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and 21.10 builds. The 26.1.2, 26.2 and 26.3 bands ship for both loaders. The 26.3 NeoForge build is published as **beta** because NeoForge 26.3 itself has no stable release yet.
+NeoForge coverage differs slightly: NeoForge has no 1.20.5 line of its own, and no stable 21.6 / 21.7 / 21.9 builds, so MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and 21.10 builds. The 26.1.2, 26.2 and 26.3 bands ship for both loaders.
 
 | Minecraft | Loader | Fabric API (Fabric only) |
 | --------- | ------ | ------------------------ |
