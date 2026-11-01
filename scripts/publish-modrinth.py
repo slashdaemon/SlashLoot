@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Publish SlashLootr per-band JARs to Modrinth.
+Publish SlashLoot per-band JARs to Modrinth.
 
 One JAR per (MC version band, loader). Each becomes one Modrinth version,
 tagged with its own loader. Simplified cousin of the StreamCraft per-platform-variant
@@ -8,13 +8,13 @@ flow — same .env loading, dry-run, project-ID resolution, idempotent re-runs.
 
 Usage:
     # Dry-run all bands to inspect metadata
-    python scripts/publish-modrinth.py --project slashlootr --version 0.1.0 --dry-run
+    python scripts/publish-modrinth.py --project slashloot --version 0.1.0 --dry-run
 
     # Publish all bands as a release
-    python scripts/publish-modrinth.py --project slashlootr --version 0.1.0
+    python scripts/publish-modrinth.py --project slashloot --version 0.1.0
 
     # Publish a subset as a beta
-    python scripts/publish-modrinth.py --project slashlootr --version 0.1.0 \\
+    python scripts/publish-modrinth.py --project slashloot --version 0.1.0 \\
         --bands 1.21.9 --type beta
 
 Auth via MODRINTH_TOKEN env var or .env file in the repo root. PAT scope:
@@ -67,6 +67,7 @@ BAND_GAME_VERSIONS = {
     ("1.21.11", "fabric"):   ["1.21.11"],
     ("26.1.2",  "fabric"):   ["26.1.2"],
     ("26.2",    "fabric"):   ["26.2"],
+    ("26.3",    "fabric"):   ["26.3"],
 
     ("1.20.6",  "neoforge"): ["1.20.6"],
     ("1.21.1",  "neoforge"): ["1.21.1"],
@@ -78,6 +79,9 @@ BAND_GAME_VERSIONS = {
     ("1.21.11", "neoforge"): ["1.21.11"],
     ("26.1.2",  "neoforge"): ["26.1.2"],
     ("26.2",    "neoforge"): ["26.2"],
+    ("26.3",    "neoforge"): ["26.3"],
+    # MinecraftForge: 1.20.1 only. Built against Forge 47.1.3, so the same file runs on NeoForge 1.20.1.
+    ("1.20.1",  "forge"):    ["1.20.1"],
 }
 
 
@@ -85,19 +89,38 @@ def game_versions_for(band: str, loader: str) -> list[str]:
     """MC versions a given (band, loader) JAR is advertised for."""
     return BAND_GAME_VERSIONS.get((band, loader), [band])
 
+
+# (band, loader) pairs built on a beta loader. These always publish as `beta`, whatever --type says,
+# so a stable release never advertises a JAR whose loader can still break underneath it.
+BETA_ONLY_BANDS = {
+    ("26.3", "neoforge"),  # NeoForge 26.3 has no stable build yet (26.3.0.x-beta)
+}
+
+
+def release_type_for(band: str, loader: str, requested: str) -> str:
+    """--type, downgraded to `beta` for bands whose loader is itself beta-only."""
+    if (band, loader) in BETA_ONLY_BANDS and requested == "release":
+        return "beta"
+    return requested
+
 # Fabric API (Modrinth project ID P7dR8mSH) is required on Fabric only — the NeoForge
 # builds reach the same events through NeoForge's own bus and depend on nothing extra.
 FABRIC_DEPENDENCIES = [
     {"project_id": "P7dR8mSH", "dependency_type": "required"},  # fabric-api
 ]
 
-LOADERS = ("fabric", "neoforge")
+LOADERS = ("fabric", "neoforge", "forge")
+
+# Modrinth loader tags per JAR loader. The Forge 1.20.1 jar is built against Forge 47.1.3, which
+# NeoForge's 1.20.1 line (net.neoforged:forge:1.20.1-47.1.x) is a superset of, so the one file is
+# tagged for both loaders (the convention Jade and Embeddium use).
+LOADER_TAGS = {"forge": ["forge", "neoforge"]}
 
 
 def parse_filename(jar_path: Path) -> tuple[str, str, str]:
-    """Parse slashlootr-<ver>+mc<band>-<loader>.jar → (mod_version, mc_band, loader)."""
+    """Parse slashloot-<ver>+mc<band>-<loader>.jar → (mod_version, mc_band, loader)."""
     name = jar_path.stem
-    m = re.match(r"^slashlootr-([^+]+)\+mc([0-9.]+)-(fabric|neoforge)$", name)
+    m = re.match(r"^slashloot-([^+]+)\+mc([0-9.]+)-(fabric|neoforge|forge)$", name)
     if not m:
         raise ValueError(f"Cannot parse filename: {jar_path.name}")
     return m.group(1), m.group(2), m.group(3)
@@ -106,7 +129,7 @@ def parse_filename(jar_path: Path) -> tuple[str, str, str]:
 def discover_jars(release_dir: Path, mod_version: str) -> dict[tuple[str, str], Path]:
     """Maps (mc_band, loader) → jar."""
     found: dict[tuple[str, str], Path] = {}
-    for jar in sorted(release_dir.glob(f"slashlootr-{mod_version}+mc*.jar")):
+    for jar in sorted(release_dir.glob(f"slashloot-{mod_version}+mc*.jar")):
         if jar.name.endswith("-sources.jar") or jar.name.endswith("-dev.jar"):
             continue
         try:
@@ -205,7 +228,7 @@ def upload_version(
         "dependencies": FABRIC_DEPENDENCIES if loader == "fabric" else [],
         "game_versions": game_versions,
         "version_type": version_type,
-        "loaders": [loader],
+        "loaders": LOADER_TAGS.get(loader, [loader]),
         "featured": False,
         "project_id": project_id,
         "file_parts": [jar.name],
@@ -260,7 +283,7 @@ def main() -> int:
     p.add_argument("--release-dir", default="build/release", help="Directory containing JARs")
     p.add_argument("--changelog-file", default="CHANGELOG.md", help="Path to changelog file")
     p.add_argument("--bands", help="Comma-separated MC bands to upload (default: all discovered)")
-    p.add_argument("--loaders", help="Comma-separated loaders to upload: fabric,neoforge (default: all discovered)")
+    p.add_argument("--loaders", help="Comma-separated loaders to upload: fabric,neoforge,forge (default: all discovered)")
     p.add_argument("--dry-run", action="store_true", help="Print metadata without uploading")
     args = p.parse_args()
 
@@ -343,7 +366,7 @@ def main() -> int:
                 loader=loader,
                 jar=jar,
                 game_versions=game_versions,
-                version_type=args.type,
+                version_type=release_type_for(band, loader, args.type),
                 changelog=changelog,
                 token=token,
                 dry_run=args.dry_run,

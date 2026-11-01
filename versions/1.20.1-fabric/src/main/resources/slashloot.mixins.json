@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "dev.blockacademy.slashloot.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "AccessorRandomizableContainerBlockEntity",
+    "AccessorAbstractMinecartContainer",
+    "AccessorChestBoat",
+    "AccessorShulkerBoxBlock",
+    "MixinRandomizableContainer",
+    "MixinContainerEntity",
+    "MixinChestBoatInventory",
+    "MixinEntityRemoved"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

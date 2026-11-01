@@ -25,8 +25,8 @@ from pathlib import Path
 
 from PIL import Image, ImageStat
 
-from matrix_common import (RELEASE, REPO, RESULTS, TABLE, WORK, Server, advertised, chest_boat_id, get, java_for,
-                           nbt_loot, primary_mc)
+from matrix_common import (RELEASE, REPO, RESULTS, TABLE, WORK, Server, advertised, chest_boat_id, get, jar_loader,
+                           java_for, nbt_loot, primary_mc)
 
 sys.path.insert(0, str(REPO.parent / "LocalServer" / "scripts"))
 drive = importlib.import_module("drive")
@@ -415,7 +415,9 @@ def migrate(loader, source, target):
     """
     def jar_of(spec):
         band, version = spec.split(":")
-        found = [d / f"slashlootr-{version}+mc{band}-{loader}.jar" for d in (RELEASE, WORK / "old")]
+        # Releases before 0.4.0 were named slashlootr.
+        found = [d / f"{name}-{version}+mc{band}-{jar_loader(loader)}.jar"
+                 for d in (RELEASE, WORK / "old") for name in ("slashloot", "slashlootr")]
         return band, primary_mc(band, loader), next(p for p in found if p.exists())
 
     shots = WORK / "shots" / f"migrate-{source}-{target}".replace(":", "_")
@@ -451,7 +453,7 @@ def migrate(loader, source, target):
         after = open_and_snap(s.rcon, c, 0.5, "after", out)
         out["has_items"], out["same_slots"] = has_items(after), same_slots(before, after)
         c.key("esc")
-        out["store_errors"] = [l[:200] for l in s.text().splitlines() if "slashlootr" in l.lower() and "rror" in l][:4]
+        out["store_errors"] = [l[:200] for l in s.text().splitlines() if "slashloot" in l.lower() and "rror" in l][:4]
     finally:
         c.stop()
         s.stop()

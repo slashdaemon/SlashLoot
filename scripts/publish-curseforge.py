@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Publish SlashLootr per-band JARs to CurseForge.
+Publish SlashLoot per-band JARs to CurseForge.
 
-SlashLootr ships one JAR per (MC version band, loader) — no platform variants.
+SlashLoot ships one JAR per (MC version band, loader) — no platform variants.
 Each (band) becomes one CurseForge file. This is the simplified cousin of
 StreamCraft's per-platform-variant flow: same project ID resolution, same
 game-version catalog handling, same dry-run + selective-bands ergonomics —
@@ -87,6 +87,7 @@ BAND_GAME_VERSIONS = {
     ("1.21.11", "fabric"):   ["1.21.11"],
     ("26.1.2",  "fabric"):   ["26.1.2"],
     ("26.2",    "fabric"):   ["26.2"],
+    ("26.3",    "fabric"):   ["26.3"],
 
     ("1.20.6",  "neoforge"): ["1.20.6"],
     ("1.21.1",  "neoforge"): ["1.21.1"],
@@ -98,12 +99,29 @@ BAND_GAME_VERSIONS = {
     ("1.21.11", "neoforge"): ["1.21.11"],
     ("26.1.2",  "neoforge"): ["26.1.2"],
     ("26.2",    "neoforge"): ["26.2"],
+    ("26.3",    "neoforge"): ["26.3"],
+    # MinecraftForge: 1.20.1 only. Built against Forge 47.1.3, so the same file runs on NeoForge 1.20.1.
+    ("1.20.1",  "forge"):    ["1.20.1"],
 }
 
 
 def game_versions_for(band: str, loader: str) -> list[str]:
     """MC versions a given (band, loader) JAR is advertised for."""
     return BAND_GAME_VERSIONS.get((band, loader), [band])
+
+
+# (band, loader) pairs built on a beta loader. These always publish as `beta`, whatever --type says,
+# so a stable release never advertises a JAR whose loader can still break underneath it.
+BETA_ONLY_BANDS = {
+    ("26.3", "neoforge"),  # NeoForge 26.3 has no stable build yet (26.3.0.x-beta)
+}
+
+
+def release_type_for(band: str, loader: str, requested: str) -> str:
+    """--type, downgraded to `beta` for bands whose loader is itself beta-only."""
+    if (band, loader) in BETA_ONLY_BANDS and requested == "release":
+        return "beta"
+    return requested
 
 # Per-band Java version. Band A (1.20.1) needs JDK 17; 1.20.5–1.21.11 use JDK 21.
 # Band G (26.1.2) compiles with JDK 25 but we tag "Java 21" since CF doesn't yet
@@ -121,18 +139,28 @@ def java_version_for(band: str) -> str:
 
 
 # CurseForge requires at least one tag from its "Environment" version group, or the upload is
-# rejected with errorCode 1021. SlashLoot is server-side only (fabric.mod.json declares
-# environment=server, and clients connect unmodified), so every file is tagged Server.
-CURSEFORGE_ENVIRONMENT = "Server"
+# rejected with errorCode 1021. SlashLoot runs wherever the server runs: on a dedicated server
+# (clients connect unmodified) and on the integrated server of a singleplayer/LAN world, which
+# lives in the client install. So every file is tagged both Client and Server.
+CURSEFORGE_ENVIRONMENTS = ["Client", "Server"]
+
+
+# CurseForge "Modloader" tags per JAR loader. The Forge 1.20.1 jar is built against Forge 47.1.3,
+# which NeoForge's 1.20.1 line is a superset of, so the one file carries both tags.
+CF_LOADER_TAGS = {
+    "fabric": ["Fabric"],
+    "neoforge": ["NeoForge"],
+    "forge": ["Forge", "NeoForge"],
+}
 
 
 def parse_filename(jar_path: Path) -> tuple[str, str, str]:
     """
     Parse a JAR filename into (mod_version, mc_band, loader).
-    Expected shape: slashlootr-<ver>+mc<band>-<loader>.jar
+    Expected shape: slashloot-<ver>+mc<band>-<loader>.jar
     """
     name = jar_path.stem
-    m = re.match(r"^slashlootr-([^+]+)\+mc([0-9.]+)-(fabric|neoforge)$", name)
+    m = re.match(r"^slashloot-([^+]+)\+mc([0-9.]+)-(fabric|neoforge|forge)$", name)
     if not m:
         raise ValueError(f"Cannot parse filename: {jar_path.name}")
     return m.group(1), m.group(2), m.group(3)
@@ -141,7 +169,7 @@ def parse_filename(jar_path: Path) -> tuple[str, str, str]:
 def discover_jars(release_dir: Path, mod_version: str) -> dict[tuple[str, str], Path]:
     """Return {(mc_band, loader): jar_path} for the given mod version."""
     found: dict[tuple[str, str], Path] = {}
-    for jar in sorted(release_dir.glob(f"slashlootr-{mod_version}+mc*.jar")):
+    for jar in sorted(release_dir.glob(f"slashloot-{mod_version}+mc*.jar")):
         if jar.name.endswith("-sources.jar") or jar.name.endswith("-dev.jar"):
             continue
         try:
@@ -226,7 +254,7 @@ def expected_type_slug(name: str) -> str | None:
     """
     if name in ("Client", "Server"):
         return "environment"
-    if name in ("Fabric", "NeoForge"):
+    if name in ("Fabric", "NeoForge", "Forge"):
         return "modloader"
     if name.startswith("Java "):
         return "java"
@@ -243,10 +271,10 @@ def resolve_game_version_ids(
     mc_versions: list[str],
     java_version: str,
     band: str,
-    loader_name: str,
+    loader_names: list[str],
 ) -> list[int]:
     """Build the gameVersions int-ID array CurseForge expects."""
-    requested = [*mc_versions, loader_name, java_version, CURSEFORGE_ENVIRONMENT]
+    requested = [*mc_versions, *loader_names, java_version, *CURSEFORGE_ENVIRONMENTS]
     ids: list[int] = []
     missing: list[str] = []
     for name in requested:
@@ -313,7 +341,7 @@ def upload_band(
     metadata = {
         "changelog": changelog,
         "changelogType": changelog_type,
-        "displayName": f"slashlootr-{mod_version}+mc{band}-{loader}.jar",
+        "displayName": f"slashloot-{mod_version}+mc{band}-{loader}.jar",
         "gameVersions": game_version_ids,
         "releaseType": release_type,
     }
@@ -351,7 +379,7 @@ def main() -> int:
     p.add_argument("--release-dir", default="build/release", help="Directory containing JARs")
     p.add_argument("--changelog-file", default="CHANGELOG.md", help="Path to changelog file")
     p.add_argument("--bands", help="Comma-separated MC bands to upload (default: all discovered)")
-    p.add_argument("--loaders", help="Comma-separated loaders to upload: fabric,neoforge (default: all discovered)")
+    p.add_argument("--loaders", help="Comma-separated loaders to upload: fabric,neoforge,forge (default: all discovered)")
     p.add_argument("--changelog-format", default="html", choices=["html", "markdown", "text"],
                    help="changelogType to send. Default 'html' (we convert the .md source to "
                         "HTML client-side because CurseForge's 'markdown' type renders raw markup).")
@@ -433,12 +461,12 @@ def main() -> int:
     successes = 0
     for band, loader in sorted(found):
         jar = found[(band, loader)]
-        loader_name = "NeoForge" if loader == "neoforge" else "Fabric"
+        loader_names = CF_LOADER_TAGS[loader]
         mc_versions = game_versions_for(band, loader)
         java_version = java_version_for(band)
         if catalog:
             game_version_ids = resolve_game_version_ids(
-                catalog, type_ids, mc_versions, java_version, band, loader_name)
+                catalog, type_ids, mc_versions, java_version, band, loader_names)
         else:
             game_version_ids = [-1]  # dry-run placeholder
         try:
@@ -449,7 +477,7 @@ def main() -> int:
                 loader=loader,
                 jar=jar,
                 game_version_ids=game_version_ids,
-                release_type=args.type,
+                release_type=release_type_for(band, loader, args.type),
                 changelog=changelog,
                 changelog_type=changelog_type,
                 token=token,

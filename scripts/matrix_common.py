@@ -28,9 +28,24 @@ CACHE = WORK / "cache"
 LOGS = WORK / "logs"
 RESULTS = WORK / "results"
 PRISM_JAVA = Path(os.environ["APPDATA"]) / "PrismLauncher" / "java"
-UA = {"User-Agent": "slashdaemon/SlashLootr test matrix"}
+UA = {"User-Agent": "slashdaemon/SlashLoot test matrix"}
 TABLE = "minecraft:chests/simple_dungeon"
 BLOCKED_TABLE = "minecraft:chests/igloo_chest"
+
+
+# Pinned to match scripts/smoke.py. (installer URL, directory of win_args.txt)
+LEGACY_NEOFORGE = "neoforge-legacy"
+FORGE_SERVERS = {
+    "forge": ("https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.23/"
+              "forge-1.20.1-47.4.23-installer.jar", "libraries/net/minecraftforge/forge/1.20.1-47.4.23"),
+    LEGACY_NEOFORGE: ("https://maven.neoforged.net/releases/net/neoforged/forge/1.20.1-47.1.106/"
+                      "forge-1.20.1-47.1.106-installer.jar", "libraries/net/neoforged/forge/1.20.1-47.1.106"),
+}
+
+
+def jar_loader(loader):
+    """NeoForge 1.20.1 runs the Forge jar."""
+    return "forge" if loader == LEGACY_NEOFORGE else loader
 
 
 def mod_version():
@@ -43,13 +58,15 @@ def advertised():
     for node in tree.body:
         if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "BAND_GAME_VERSIONS":
             table = ast.literal_eval(node.value)
-            return [(b, l, mc) for (b, l), mcs in table.items() for mc in mcs]
+            pairs = [(b, l, mc) for (b, l), mcs in table.items() for mc in mcs]
+            # The Forge jar is also published for NeoForge's 1.20.1 line, which is a separate install.
+            return pairs + [("1.20.1", LEGACY_NEOFORGE, "1.20.1")]
     raise SystemExit("BAND_GAME_VERSIONS not found")
 
 
 def primary_mc(band, loader):
     """The MC version a jar was compiled against."""
-    props = REPO / "versions" / (band if band.startswith("26.") else f"{band}-{loader}") / "gradle.properties"
+    props = REPO / "versions" / (band if band.startswith("26.") else f"{band}-{jar_loader(loader)}") / "gradle.properties"
     return re.search(r"(?m)^minecraft_version=(\S+)", props.read_text()).group(1)
 
 
@@ -59,7 +76,7 @@ def pinned_neoforge(band):
 
 
 def jar_path(band, loader, version=None):
-    return RELEASE / f"slashlootr-{version or mod_version()}+mc{band}-{loader}.jar"
+    return RELEASE / f"slashloot-{version or mod_version()}+mc{band}-{jar_loader(loader)}.jar"
 
 
 def java_for(mc):
@@ -133,6 +150,26 @@ def neoforge_install(version):
     return home
 
 
+def forge_install(loader):
+    """Installs Forge, or NeoForge's 1.20.1 fork of it, into WORK/forge/<loader>."""
+    url, args_dir = FORGE_SERVERS[loader]
+    home = WORK / "forge" / loader
+    if (home / args_dir / "win_args.txt").exists():
+        return home
+    installer = CACHE / url.rsplit("/", 1)[1].replace("forge-", f"{loader}-", 1)
+    if not installer.exists():
+        get(url, installer)
+    home.mkdir(parents=True, exist_ok=True)
+    LOGS.mkdir(parents=True, exist_ok=True)
+    with open(LOGS / f"forge-install-{loader}.log", "wb") as log:
+        subprocess.run([str(java_for("1.20.1")), "-jar", str(installer), "--installServer", str(home)], cwd=home,
+                       stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=900,
+                       creationflags=0x8)
+    if not (home / args_dir / "win_args.txt").exists():
+        raise RuntimeError(f"{loader} did not install")
+    return home
+
+
 class Rcon:
     def __init__(self, port=25575, password="testpassword"):
         self.s = socket.create_connection(("127.0.0.1", port), timeout=15)
@@ -200,6 +237,10 @@ class Server:
             launcher = fabric_server(self.mc)
             extras = [fabric_api(self.mc)]
             cmd = ["-jar", str(launcher), "nogui"]
+        elif self.loader in FORGE_SERVERS:
+            self.home = forge_install(self.loader)
+            extras = []
+            cmd = [f"@{FORGE_SERVERS[self.loader][1]}/win_args.txt", "nogui"]
         else:
             version = self.neoforge or neoforge_for_mc(self.mc)
             if version is None:
@@ -219,7 +260,7 @@ class Server:
         (self.home / "eula.txt").write_text("eula=true\n")
         (self.home / "server.properties").write_text(PROPS.format(level=self.level))
         (self.home / "config").mkdir(exist_ok=True)
-        cfg = self.home / "config" / "slashlootr.json"
+        cfg = self.home / "config" / "slashloot.json"
         cfg.unlink(missing_ok=True)
         if self.config:
             cfg.write_text(json.dumps(self.config))
@@ -258,7 +299,7 @@ class Server:
         return False
 
     def mod_errors(self):
-        pat = re.compile(r"Mixin apply.*slashlootr|slashlootr.*(failed|error)|Caused by.*slashlootr"
+        pat = re.compile(r"Mixin apply.*slashloot|slashloot.*(failed|error)|Caused by.*slashloot"
                          r"|Exception.*dev\.blockacademy|at dev\.blockacademy", re.I)
         return [l.strip()[:220] for l in self.text().splitlines() if pat.search(l)][:6]
 

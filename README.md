@@ -1,6 +1,6 @@
-# SlashLootr
+# SlashLoot
 
-Server-side per-player loot for naturally-generated containers in Minecraft. **Fabric and NeoForge. No client install required. No custom blocks.**
+Server-side per-player loot for naturally-generated containers in Minecraft. **Fabric, NeoForge, and Forge 1.20.1. No client install required. No custom blocks.**
 
 ## What it does
 
@@ -10,7 +10,7 @@ Player-placed containers behave exactly as in vanilla.
 
 ## Why server-side
 
-SlashLootr never touches block-state. The container stays a `minecraft:chest` (or barrel, shulker, minecart, etc.) forever, and every player gets their own copy entirely via server-side menu substitution. That means:
+SlashLoot never touches block-state. The container stays a `minecraft:chest` (or barrel, shulker, minecart, etc.) forever, and every player gets their own copy entirely via server-side menu substitution. That means:
 
 - **No client install.** Players connect with plain vanilla Fabric and never have to update when you do.
 - **Nothing else breaks.** Scoreboard selectors, datapack predicates, `/data` queries, structure saves, and other mods that scan for `minecraft:chest` keep seeing ordinary vanilla blocks.
@@ -19,19 +19,24 @@ Architecture deep-dive: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Supported versions
 
-22 JARs — 12 Fabric, 10 NeoForge. Pick the one matching your server's Minecraft version **and
-loader**. Files are named `slashlootr-<version>+mc<band>-<loader>.jar`.
+25 JARs — 13 Fabric, 11 NeoForge, 1 Forge. Pick the one matching your server's Minecraft version
+**and loader**. Files are named `slashloot-<version>+mc<band>-<loader>.jar`.
 
-NeoForge coverage differs slightly from Fabric: NeoForge has no 1.20.1 or 1.20.5 line, and no stable
+**Forge is 1.20.1 only**, the modpack LTS line. The same `-forge` JAR also runs on NeoForge 1.20.1
+(NeoForge's 1.20.1 line is Forge 47.1.3 underneath), so 1.20.1 NeoForge servers use it too.
+
+NeoForge coverage differs slightly from Fabric: NeoForge has no 1.20.5 line of its own, and no stable
 builds for 21.6 / 21.7 / 21.9 — MC 1.21.6–1.21.8 and 1.21.9–1.21.10 are covered by the 21.8 and
 21.10 builds instead.
 
-The 26.1 and 26.2 bands are quarantined builds: their own Gradle 9.4 wrapper, JDK 25, and Loom
-1.15.5, because Mojang ships 26.x unobfuscated.
+The 26.1, 26.2 and 26.3 bands are quarantined builds with their own Gradle wrapper, JDK 25, and
+Loom (Gradle 9.4 + Loom 1.15.5 for 26.1/26.2, Gradle 9.6 + Loom 1.17.21 for 26.3), because Mojang
+ships 26.x unobfuscated. NeoForge 26.3 is still beta-only, so that JAR is published as beta.
 
 | Minecraft | Loader | Fabric API (Fabric only) |
 | --------- | ------ | ------------------------ |
 | 1.20.1 | Fabric | 0.92.2+1.20.1 |
+| 1.20.1 | Forge (also runs on NeoForge 1.20.1) | — |
 | 1.20.5–1.20.6 | Fabric | 0.97.8+1.20.5 |
 | 1.20.6 | NeoForge | — |
 | 1.21 | Fabric | 0.102.0+1.21 |
@@ -48,6 +53,7 @@ The 26.1 and 26.2 bands are quarantined builds: their own Gradle 9.4 wrapper, JD
 | 1.21.11 | Fabric / NeoForge | 0.141.2+1.21.11 |
 | 26.1.2 | Fabric / NeoForge | 0.146.1+26.1.2 |
 | 26.2 | Fabric / NeoForge | 0.158.0+26.2 |
+| 26.3 | Fabric / NeoForge (beta) | 0.161.0+26.3 |
 
 Fabric builds need Fabric API at the listed version. NeoForge builds need nothing beyond NeoForge itself.
 
@@ -61,6 +67,10 @@ For the breakdown of which vanilla APIs each band needs and what was rewritten p
 
 That's it. Clients connect with an unmodified game (no SlashLoot in their mods folder).
 
+**Singleplayer and LAN.** A singleplayer world runs its own built-in server, so for singleplayer, LAN
+or e4mc worlds put SlashLoot (and Fabric API, on Fabric) in your own game's `mods/` folder. Friends who
+join your LAN world don't need it. `/slashloot` commands need cheats enabled.
+
 ## How it works (one paragraph)
 
 Two intercepts on the vanilla loot path:
@@ -70,11 +80,11 @@ Two intercepts on the vanilla loot path:
 
 Per-player seed: `containerSeed XOR player.uuid.msb XOR rotL(player.uuid.lsb, 17)` — same player on same chest gives stable loot.
 
-Persistence lives at `world/<dimension>/data/slashlootr.dat`. Full sequence diagram, identity scheme, and per-band file map: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Persistence lives at `world/<dimension>/data/slashloot.dat`. Full sequence diagram, identity scheme, and per-band file map: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Configuration
 
-`config/slashlootr.json` (created on first launch):
+`config/slashloot.json` (created on first launch):
 
 ```json
 {
@@ -115,7 +125,7 @@ All require permission level 2 (op).
 | `/slashloot forget all`                 | Wipe every stored container in the current dimension                    |
 | `/slashloot prune`                      | Drop stored entries whose container no longer exists (loaded chunks)    |
 | `/slashloot stats`                      | Stored entry counts for the current dimension                           |
-| `/slashloot reload`                     | Re-read `config/slashlootr.json`                                        |
+| `/slashloot reload`                     | Re-read `config/slashloot.json`                                        |
 
 ## Known limitations
 

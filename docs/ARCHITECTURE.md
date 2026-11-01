@@ -1,6 +1,6 @@
-# SlashLootr Architecture
+# SlashLoot Architecture
 
-A technical deep-dive into how SlashLootr delivers per-player loot for naturally-generated containers **without** registering custom blocks and **without** requiring a client install. This document is the canonical reference for the mod's design, the vanilla code paths it hooks, and the compat seams that absorb Mojang's API drift between MC 1.20.1 and 26.1.
+A technical deep-dive into how SlashLoot delivers per-player loot for naturally-generated containers **without** registering custom blocks and **without** requiring a client install. This document is the canonical reference for the mod's design, the vanilla code paths it hooks, and the compat seams that absorb Mojang's API drift between MC 1.20.1 and 26.1.
 
 If you only want to use the mod, [`README.md`](../README.md) is enough. This document is for contributors and for the next person who has to add an MC version.
 
@@ -99,7 +99,9 @@ If we **cancel** `unpackLootTable` server-side:
 
 ### Entity containers
 
-The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. They all implement `ContainerEntity`, and the relevant method is its default `unpackChestVehicleLootTable(Player)`. That holds on every band including 1.20.1. Vanilla never generates chest boats with loot, so those only come from commands, datapacks and other mods, but they still have to work.
+The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. All of them implement `ContainerEntity` (interface), on every band including 1.20.1, and roll through its default method `ContainerEntity#unpackChestVehicleLootTable(Player)`. On 1.20.1 `ChestBoat#unpackLootTable` only delegates to it, and `AbstractMinecartContainer` has no `unpackLootTable` of its own, so a hook on either class misses minecarts (0.2.0–0.3.3 shipped exactly that, and the 1.20.1 JAR failed at startup). What does work on a class is merging an *override* of the interface method into it, which is how the Forge 1.20.1 band hooks them (see Band A below).
+
+Vanilla never generates chest boats with loot, so those only come from commands, datapacks and other mods, but they still have to work.
 
 A chest boat has one click path vanilla does not share with minecarts: a plain click boards it, and only a sneak-click (or a click when the seat is taken) opens it. A rider opens it with the inventory key, which arrives through `openCustomInventoryScreen` with no click at all, so `MixinChestBoatInventory` covers that path. Its target class differs by band, so it lives in `compat/vehicle-*`.
 
@@ -142,7 +144,7 @@ whose open `ChestMenu#getContainer()` is the block entity, and it fires open and
 when the count crosses exactly zero. So chest-style menus are a `LootChestMenu`, whose slots use the
 personal container but whose `getContainer()` reports the world container (a `CompoundContainer` of
 both block entities for a double chest). `LootContainerBase#stillValid` forwards too, so a player who
-leaves range is closed out rather than silently dropped from the count. Before 0.3.1 the recheck
+leaves range is closed out rather than silently dropped from the count. Before 0.5.3 the recheck
 zeroed the count with the GUI open, the real close took it to -1, and every later open was silent.
 
 With delegation on (the default) vanilla plays the open sound itself, so the mod's manual
@@ -238,7 +240,7 @@ public static InteractionResult interact(
 @Mixin(RandomizableContainer.class)
 public interface MixinRandomizableContainer {
     @Inject(method = "unpackLootTable", at = @At("HEAD"), cancellable = true)
-    default void slashlootr$cancelVanillaRoll(Player player, CallbackInfo ci) {
+    default void slashloot$cancelVanillaRoll(Player player, CallbackInfo ci) {
         RandomizableContainer self = (RandomizableContainer) this;
         if (!(self instanceof BlockEntity be)) return;
         Level level = be.getLevel();
@@ -266,7 +268,7 @@ The entity-container equivalent (`MixinContainerEntity`) hooks `unpackChestVehic
 
 When the use-callback fires for a naturally-generated container:
 
-1. Look up the per-dimension `SlashLootrState` (the persistent store).
+1. Look up the per-dimension `SlashLootState` (the persistent store).
 2. Look up the `PlayerLootEntry` for this container's identity (block pos or entity UUID).
 3. Look up the `SimpleContainer` for this player's UUID.
 4. **If absent**: roll a fresh one via `LootTable#fill` using a player-derived seed, register a `ContainerListener` that marks the state dirty on any slot change, store it.
@@ -347,12 +349,12 @@ For chest minecarts and chest boats, `entity.getUUID()` is stable across chunk u
 
 ### Where it lives
 
-`world/<dimension>/data/slashlootr.dat` — one per dimension, lazily created on first use, accessed via `ServerLevel#getDataStorage().computeIfAbsent(...)`.
+`world/<dimension>/data/slashloot.dat` — one per dimension, lazily created on first use, accessed via `ServerLevel#getDataStorage().computeIfAbsent(...)`.
 
 ### Schema (Bands A–D: NBT-based)
 
 ```
-SlashLootrState (CompoundTag)
+SlashLootState (CompoundTag)
 ├── blocks: ListTag<CompoundTag>
 │   └── { pos: long, players: ListTag<CompoundTag> {
 │             uuid: UUID, size: int, items: ListTag (SimpleContainer.createTag) } }
@@ -361,7 +363,7 @@ SlashLootrState (CompoundTag)
               uuid: UUID, size: int, items: ListTag (SimpleContainer.createTag) } }
 ```
 
-Implementation: `compat/store-nbt/.../store/SlashLootrState.java`, shared by Bands B–D. Band A carries its own copy that drops the `HolderLookup.Provider` arguments (1.20.1 predates them).
+Implementation: `compat/store-nbt/.../store/SlashLootState.java`, shared by Bands B–D. Band A carries its own copy that drops the `HolderLookup.Provider` arguments (1.20.1 predates them).
 
 ### Schema (Bands E–G: Codec-based)
 
@@ -379,12 +381,12 @@ record PlayerSlots(UUID player, int size, List<SlotItem> items) { ... }
 record BlockEntryRec(long pos, List<PlayerSlots> players) { ... }
 record EntityEntryRec(UUID uuid, List<PlayerSlots> players) { ... }
 
-public static final Codec<SlashLootrState> CODEC = RecordCodecBuilder.create(i -> i.group(
-    BlockEntryRec.CODEC.listOf().fieldOf("blocks").forGetter(SlashLootrState::serializeBlocks),
-    EntityEntryRec.CODEC.listOf().fieldOf("entities").forGetter(SlashLootrState::serializeEntities)
-).apply(i, SlashLootrState::deserialize));
+public static final Codec<SlashLootState> CODEC = RecordCodecBuilder.create(i -> i.group(
+    BlockEntryRec.CODEC.listOf().fieldOf("blocks").forGetter(SlashLootState::serializeBlocks),
+    EntityEntryRec.CODEC.listOf().fieldOf("entities").forGetter(SlashLootState::serializeEntities)
+).apply(i, SlashLootState::deserialize));
 
-public static final SavedDataType<SlashLootrState> TYPE = StateType.create(CODEC);
+public static final SavedDataType<SlashLootState> TYPE = StateType.create(CODEC);
 ```
 
 `StateType` is the one line that differs again at 26.1, where `SavedDataType`'s first argument
@@ -416,7 +418,7 @@ Mojang's `SavedData` framework persists dirty saved data on world save (every ~1
 
 ## 7. Configuration & admin commands
 
-### `config/slashlootr.json`
+### `config/slashloot.json`
 
 Created on first launch with defaults. Re-readable at runtime with `/slashloot reload`; missing keys
 take their defaults, so a file written by an older version keeps working.
@@ -479,7 +481,7 @@ All require permission level 2 (op).
 | `/slashloot forget all` | Wipe every stored container in this dimension |
 | `/slashloot prune` | Run a full sweep now; reports removed and skipped-because-unloaded counts |
 | `/slashloot stats` | Stored block/entity/player-copy counts for this dimension |
-| `/slashloot reload` | Re-read `config/slashlootr.json` |
+| `/slashloot reload` | Re-read `config/slashloot.json` |
 
 
 ---
@@ -491,13 +493,13 @@ build file names only the compat variants it needs. This replaced nine full per-
 in 0.2.0 - a fix used to cost nine edits, and drifted between bands in practice.
 
 ```
-SlashLootr/
+SlashLoot/
 |- build.gradle                Root: Loom plugin, fabricBands list, buildAll, build26
 |- gradle/fabric-band.gradle   Composes a band JAR from the shared tree + its variants
 |- common/                     SeedDeriver - plain Java, no MC types
 |- mc-src/                     ALL shared mod logic, ONE copy
-|   `- src/main/java/dev/blockacademy/slashlootr/
-|       |- SlashLootrCore.java         boot(LoaderBridge) - loader-agnostic entrypoint
+|   `- src/main/java/dev/blockacademy/slashloot/
+|       |- SlashLootCore.java         boot(LoaderBridge) - loader-agnostic entrypoint
 |       |- loader/LoaderBridge.java    the ONLY Fabric/NeoForge seam
 |       |- core/Handling.java          THE decision function (section 3)
 |       |- core/LootContainerBase.java dirty tracking + open/close delegation
@@ -509,13 +511,14 @@ SlashLootr/
 |       |- handler/EntityInteractionHandler.java
 |       |- handler/CleanupHandler.java  break hook + background prune
 |       |- command/SlashLootCommand.java
-|       |- config/SlashLootrConfig.java
+|       |- config/SlashLootConfig.java
 |       |- store/PlayerLootEntry.java
 |       `- mixin/{MixinRandomizableContainer,MixinContainerEntity,MixinEntityRemoved}.java
 |- compat/                     per-generation seams - a few dozen lines each
 |- loader-fabric/              FabricBridge + entrypoint + fabric.mod.json + mixins.json
 `- versions/
     |- 1.20.1-fabric/          Band A - self-contained fork (see below)
+    |- 1.20.1-forge/           Band A on Forge - Band A sources + ForgeBridge (legacyforge)
     |- <band>-fabric/          build.gradle + gradle.properties ONLY
     `- 26.1.2/                 Band G - quarantined composite (own wrapper, JDK 25)
 ```
@@ -528,12 +531,19 @@ ext.slashloot = [ids: "location", vehicle: "legacy", store: "nbt", open: "player
 apply from: "${rootDir}/gradle/fabric-band.gradle"
 ```
 
-### A note on the package name
+### A note on names
 
-Through 0.1.x every band used the package `dev.blockacademy.slashlootr.v1_21_1`, a leftover from
-when 1.21.1 was the only band. 0.2.0 dropped the suffix: everything is `dev.blockacademy.slashlootr`.
-The mod id, `config/slashlootr.json`, and `world/<dim>/data/slashlootr.dat` were deliberately left
-alone - the save data holds no class names, so existing worlds carry over untouched.
+The mod id, package (`dev.blockacademy.slashloot`), config file (`config/slashloot.json`) and save
+file (`world/<dim>/data/slashloot.dat`) all use `slashloot`. Releases up to 0.3.3 used an older id
+for the mod, the config file and the save file; `SlashLootCore.LEGACY_ID` holds it and is used for
+nothing but migration:
+
+- `SlashLootConfig#load` moves an old config file to the new name if no new one exists.
+- `SlashLootState#get` reads the old save file when no new one exists, registers that data under
+  the new id and marks it dirty, so the next world save writes the new file. The old file is left
+  on disk and never read again once the new one exists.
+
+The save data holds no class names, so the package rename needs no migration of its own.
 
 ---
 
@@ -574,24 +584,29 @@ the quarantine.
 ### Band A - MC 1.20.1 (the deliberate fork)
 
 `versions/1.20.1-fabric/` keeps its own full copy of the sources, and is the one place a fix must be
-ported by hand. 1.20.1:
+ported by hand. Those sources are loader-neutral behind their own `loader/LoaderBridge`, and
+`versions/1.20.1-forge/` compiles them for MinecraftForge (MDG legacyforge) with a `ForgeBridge` in
+place of `loader/fabric/`, so one port covers both loaders. 1.20.1:
 
 - has **no `RandomizableContainer` interface** - the mixin targets `RandomizableContainerBlockEntity`
-- loot tables are `ResourceLocation`s in private fields on each vehicle class, which need separate
-  `@Accessor` mixins on `AbstractMinecartContainer` and `ChestBoat`
+- **does** have `ContainerEntity`, so on Fabric entity containers use the same `MixinContainerEntity`
+  hook on `unpackChestVehicleLootTable` as the shared tree. Forge 1.20.1 bundles upstream Mixin 0.8.5,
+  which cannot inject into an interface, so the Forge band instead merges an override of that default
+  method into `AbstractMinecartContainer` and `ChestBoat` (`MixinMinecartUnpack`,
+  `MixinChestBoatUnpack`). Every loot path reaches the roll through that interface call.
 - stores loot tables as **`ResourceLocation`**, not `ResourceKey<LootTable>`
 - keeps those fields **private**, so reads go through `@Accessor` mixins
 - resolves tables via `MinecraftServer#getLootData()` rather than `reloadableRegistries()`
 - uses the three-arg `SavedData.computeIfAbsent` and a `save(CompoundTag)` with no `HolderLookup`
 
 Sharing it would mean threading an opaque loot-reference abstraction through every band to serve one
-legacy Fabric-only version. Its `Handling` keeps the same contract and the same reason strings as the
+legacy version. Its `Handling` keeps the same contract and the same reason strings as the
 shared one, so porting a change is mechanical.
 ## 10. Comparison vs. Lootr / myLoot / LootrPlugin
 
-| Aspect                              | Lootr                          | myLoot                         | LootrPlugin (Paper)        | **SlashLootr** |
+| Aspect                              | Lootr                          | myLoot                         | LootrPlugin (Paper)        | **SlashLoot** |
 | ----------------------------------- | ------------------------------ | ------------------------------ | -------------------------- | --------------- |
-| Loader                              | Fabric, NeoForge, Forge        | Fabric                         | Paper plugin               | Fabric          |
+| Loader                              | Fabric, NeoForge, Forge        | Fabric                         | Paper plugin               | Fabric, NeoForge, Forge 1.20.1 |
 | Required on clients                 | Yes                            | Yes                            | No                         | **No**          |
 | Touches vanilla block-state         | Yes (`LootrChestBlock` swap)   | Yes (`MyLootChestBlock` swap)  | No                         | **No**          |
 | Vanilla `/data` / selectors work    | No (it's a different block)    | No                             | Yes                        | **Yes**         |
@@ -602,7 +617,7 @@ shared one, so porting a change is mechanical.
 | Decorated pots / suspicious blocks  | ✓                              | ✗                              | ?                          | ✗               |
 | MC versions covered                 | 1.12, 1.16–1.21.x              | 1.18–1.20.x                    | 1.18–26.1.x                | **1.20.1, 1.20.5–26.1.x** |
 
-The one trade-off SlashLootr accepts in exchange for vanilla compatibility:
+The one trade-off SlashLoot accepts in exchange for vanilla compatibility:
 
 1. **No looted-state visual.** Adding it would require a companion client mod, undermining the "vanilla clients" benefit.
 
@@ -649,17 +664,13 @@ means they run the same code, but their compat variants are exercised only by th
 
 In rough order of effort vs. value:
 
-1. **NeoForge builds.** The `LoaderBridge` seam exists and everything below it is loader-neutral;
-   what remains is a `NeoForgeBridge` mapping the five hooks onto `NeoForge.EVENT_BUS`, a
-   `neoforge.mods.toml`, and per-band ModDevGradle build files. NeoForge is Mojang-mapped, so the
-   mixins apply unchanged.
-2. **Two-player client verification on the remaining bands.** Band C is verified end-to-end; the
+1. **Two-player client verification on the remaining bands.** Band C is verified end-to-end; the
    others share its source but their compat variants are only compiler-checked.
-3. **Comparator output** mixin for instanced containers, returning a sensible per-player value.
-4. **Decorated pots / suspicious sand & gravel** — separate mixin hooks on the brushing path.
-5. **Companion client mod** for the looted-state visual indicator. Optional install; server keeps working with vanilla clients.
-6. **Loot decay / re-roll**: optional config knob to clear a player's personal copy after N MC days, prompting a re-roll on next open.
-7. **Per-player seed strategy** as a config option (deterministic vs. true-random-per-open).
+2. **Comparator output** mixin for instanced containers, returning a sensible per-player value.
+3. **Decorated pots / suspicious sand & gravel** — separate mixin hooks on the brushing path.
+4. **Companion client mod** for the looted-state visual indicator. Optional install; server keeps working with vanilla clients.
+5. **Loot decay / re-roll**: optional config knob to clear a player's personal copy after N MC days, prompting a re-roll on next open.
+6. **Per-player seed strategy** as a config option (deterministic vs. true-random-per-open).
 
 ---
 

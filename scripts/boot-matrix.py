@@ -84,7 +84,7 @@ def run_pair(band, loader, mc):
             s.stop()
         except Exception:
             traceback.print_exc()
-    mod_errors = [e for e in out["errors"] if "slashlootr" in e.lower() or "blockacademy" in e.lower()]
+    mod_errors = [e for e in out["errors"] if "slashloot" in e.lower() or "blockacademy" in e.lower()]
     out["pass"] = out["boot"] and bool(out["checks"]) and all(out["checks"].values()) and not mod_errors
     return out
 

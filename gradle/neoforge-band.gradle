@@ -41,7 +41,7 @@ neoForge {
     }
 
     mods {
-        slashlootr {
+        slashloot {
             sourceSet sourceSets.main
         }
     }
@@ -52,6 +52,7 @@ neoForge {
 def shared = [
         "common/src/main/java",                            // SeedDeriver (pure Java, no MC types)
         "mc-src/src/main/java",                            // all loader- and version-neutral logic
+        "compat/advancements-root/src/main/java",          // CriteriaTriggers package (moved at 26.2)
         "compat/ids-${variants.ids}/src/main/java",
         "compat/vehicle-${variants.vehicle}/src/main/java",
         "compat/store-${variants.store}/src/main/java",
@@ -82,13 +83,13 @@ processResources {
                 "neoforge_range": project.neoforge_range,
                 "minecraft_range": project.minecraft_range
     }
-    filesMatching("slashlootr.mixins.json") {
+    filesMatching("slashloot.mixins.json") {
         expand "mixin_compat": mixinCompat
     }
 }
 
 jar {
     from("${rootProject.projectDir}/LICENSE") {
-        rename { "${it}_slashlootr" }
+        rename { "${it}_slashloot" }
     }
 }

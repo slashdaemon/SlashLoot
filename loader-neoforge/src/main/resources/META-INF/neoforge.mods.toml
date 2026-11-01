@@ -1,29 +1,29 @@
 modLoader = "javafml"
 loaderVersion = "[1,)"
 license = "CC-BY-4.0"
-issueTrackerURL = "https://github.com/slashdaemon/SlashLootr/issues"
+issueTrackerURL = "https://github.com/slashdaemon/SlashLoot/issues"
 
 [[mods]]
-modId = "slashlootr"
+modId = "slashloot"
 version = "${version}"
 displayName = "SlashLoot"
 authors = "Slash"
 description = '''
 Server-side per-player loot for naturally-generated chests, barrels, shulker boxes, chest minecarts, and chest boats. No client install required. No custom blocks. Vanilla-compatible.
 '''
-displayURL = "https://github.com/slashdaemon/SlashLootr"
+displayURL = "https://github.com/slashdaemon/SlashLoot"
 
 [[mixins]]
-config = "slashlootr.mixins.json"
+config = "slashloot.mixins.json"
 
-[[dependencies.slashlootr]]
+[[dependencies.slashloot]]
 modId = "neoforge"
 type = "required"
 versionRange = "${neoforge_range}"
 ordering = "NONE"
 side = "BOTH"
 
-[[dependencies.slashlootr]]
+[[dependencies.slashloot]]
 modId = "minecraft"
 type = "required"
 versionRange = "${minecraft_range}"

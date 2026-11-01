@@ -47,6 +47,7 @@ subprojects {
     ext.sharedSourceDirs = [
             "common/src/main/java",
             "mc-src/src/main/java",
+            "compat/advancements-triggers/src/main/java",
             "compat/ids-identifier/src/main/java",
             "compat/vehicle-moved/src/main/java",
             "compat/store-codec/src/main/java",

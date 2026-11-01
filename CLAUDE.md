@@ -1,6 +1,6 @@
-# CLAUDE.md — SlashLootr
+# CLAUDE.md — SlashLoot
 
-Server-side per-player loot mod, published as **SlashLoot**. **Fabric + NeoForge.** **No custom blocks.** **No client install required.** Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
+Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required** on a dedicated server; for singleplayer/LAN it goes in the player's own `mods/` (the integrated server). Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
 
 ## Why this exists
 
@@ -13,7 +13,13 @@ Lootr/myLoot achieve per-player chests by swapping vanilla blocks for custom `Lo
 
 Per-player seed: `XOR(containerSeed, player.uuid.msb, rotL(player.uuid.lsb, 17))` — deterministic, so re-opening shows what you left.
 
-Persistence: `world/<dim>/data/slashlootr.dat`. Two maps inside: `blocks` (keyed by packed `BlockPos`) and `entities` (keyed by entity UUID).
+Persistence: `world/<dim>/data/slashloot.dat`. Two maps inside: `blocks` (keyed by packed `BlockPos`) and `entities` (keyed by entity UUID).
+
+**`SlashLootCore.LEGACY_ID` (`"slashlootr"`) is not a leftover — do not rename it.** Releases up to
+0.3.3 used that id for the mod, `config/` file and save file. `SlashLootConfig#load` and
+`SlashLootState#get` use it to carry an existing server's config and stored loot over to the
+`slashloot` names. The save migration registers a *copy* under the new id; sharing the old object
+leaves the new file unwritten (see `docs/ARCHITECTURE.md` § A note on names).
 
 ### `core/Handling` is the single decision point
 
@@ -31,16 +37,17 @@ side-effect free and must never force-load a chunk.
 
 ## Build
 
-Java 21 for the 1.20.x–1.21.x bands (Java 17 target for Band A). Bands G and J (26.x) need JDK 25 via their own wrappers.
+Java 21 for the 1.20.x–1.21.x bands (Java 17 target for Band A). Bands G, J and K (26.x) need JDK 25 via their own wrappers.
 
 ```bash
 export JAVA_HOME="/c/Users/slash/AppData/Roaming/PrismLauncher/java/java-runtime-delta"
 export PATH="$JAVA_HOME/bin:$PATH"
-./gradlew buildAll                        # all 22 band/loader JARs → build/release/
+./gradlew buildAll                        # all 25 band/loader JARs → build/release/
 ./gradlew :versions:1.21.1-fabric:build   # single Fabric band
 ./gradlew :versions:1.21.1-neoforge:build # single NeoForge band
 ./gradlew build26                         # quarantined Band G (26.1.x, both loaders)
 ./gradlew build262                        # quarantined Band J (26.2.x, both loaders)
+./gradlew build263                        # quarantined Band K (26.3.x, both loaders)
 ```
 
 Verify Prism's JDK still aliases as `java-runtime-delta` (Prism rotates these — check `ls ~/AppData/Roaming/PrismLauncher/java/` if Gradle complains about the toolchain).
@@ -51,11 +58,11 @@ One shared source tree, composed per band. **There are no per-band copies of the
 a fix is written once.
 
 ```
-SlashLootr/
+SlashLoot/
 ├── common/                     SeedDeriver — plain Java, no MC types
 ├── mc-src/                     ALL shared mod logic, ONE copy (bands B–G)
-│   └── src/main/java/dev/blockacademy/slashlootr/
-│       ├── SlashLootrCore.java         boot(LoaderBridge)
+│   └── src/main/java/dev/blockacademy/slashloot/
+│       ├── SlashLootCore.java         boot(LoaderBridge)
 │       ├── loader/LoaderBridge.java    the ONLY Fabric/NeoForge seam
 │       ├── core/Handling.java          THE decision function (read this first)
 │       ├── core/LootContainerBase.java dirty tracking + open/close delegation
@@ -63,7 +70,7 @@ SlashLootr/
 │       ├── core/{ContainerKind,LootRoller,OpenSoundFx,DebugLog}.java
 │       ├── handler/{ContainerInteraction,EntityInteraction,Cleanup}Handler.java
 │       ├── command/SlashLootCommand.java
-│       ├── config/SlashLootrConfig.java
+│       ├── config/SlashLootConfig.java
 │       ├── store/PlayerLootEntry.java
 │       └── mixin/{MixinRandomizableContainer,MixinContainerEntity,MixinEntityRemoved}.java
 ├── compat/                     per-generation seams, a few dozen lines each
@@ -85,14 +92,16 @@ SlashLootr/
 ├── gradle/neoforge-band.gradle same, for NeoForge
 └── versions/
     ├── 1.20.1-fabric/          Band A — SELF-CONTAINED FORK (see below)
+    ├── 1.20.1-forge/           Band A on Forge: Band A sources + ForgeBridge, mods.toml (legacyforge)
     ├── <band>-<loader>/        build.gradle + gradle.properties only
     ├── 26.1.2/                 Band G — quarantined composite, band-fabric + band-neoforge
-    └── 26.2/                   Band J — same shape, forked from 26.1.2
+    ├── 26.2/                   Band J — same shape, forked from 26.1.2
+    └── 26.3/                   Band K — same shape, forked from 26.2 (Gradle 9.6, Loom 1.17)
 ```
 
 `mc-src/` names no loader type. The single seam is `loader/LoaderBridge` — five hooks (use-block,
 use-entity, register-commands, block-break, server-tick) plus the config directory — which each
-loader entrypoint implements and hands to `SlashLootrCore.boot(...)`.
+loader entrypoint implements and hands to `SlashLootCore.boot(...)`.
 
 A band's whole build file is its variant list:
 
@@ -104,32 +113,55 @@ apply from: "${rootDir}/gradle/fabric-band.gradle"
 
 ### Band A is deliberately a fork
 
-`versions/1.20.1-fabric/` keeps its own full copy of the sources. MC 1.20.1 predates the
-`RandomizableContainer` and `ContainerEntity` interfaces, stores loot tables as `ResourceLocation`
+`versions/1.20.1-fabric/` keeps its own full copy of the sources, loader-neutral behind its own
+`loader/LoaderBridge` (a copy of `mc-src`'s): only `loader/fabric/` names a Fabric type.
+`versions/1.20.1-forge/` compiles that same tree minus `loader/fabric/`, plus a `ForgeBridge` and
+`@Mod` entrypoint, via MDG **legacyforge**. So a Band A fix lands on both loaders at once.
+
+MC 1.20.1 predates the `RandomizableContainer` interface, stores loot tables as `ResourceLocation`
 rather than `ResourceKey<LootTable>`, and keeps those fields private (hence the `@Accessor` mixins).
+It *does* have `ContainerEntity`: on Fabric Band A hooks it exactly like `mc-src`; on Forge, whose
+Mixin can't inject into an interface, it uses per-class overrides instead (see Currently shipping).
 Sharing it would mean an opaque loot-reference abstraction across every band to serve one legacy
-Fabric-only version. **Changes to `mc-src` must be ported to Band A by hand** — its `Handling` keeps
+version. **Changes to `mc-src` must be ported to Band A by hand** — its `Handling` keeps
 the same contract and the same reason strings, so the port is mechanical.
 
 ## Currently shipping
 
-22 JARs (12 Fabric + 10 NeoForge), all via `./gradlew buildAll`. Artifacts are
-`slashlootr-<ver>+mc<band>-<loader>.jar`.
+25 JARs (13 Fabric + 11 NeoForge + 1 Forge), all via `./gradlew buildAll`. Artifacts are
+`slashloot-<ver>+mc<band>-<loader>.jar`. **Bumping the version means four files**: root
+`gradle.properties` and the three quarantined `versions/26.*/gradle.properties`.
+
+**Forge 1.20.1 (`versions/1.20.1-forge/`), things that only bite on Forge:**
+
+- Built against **Forge 47.1.3** on purpose, so the one jar also loads on NeoForge 1.20.1 (Forge 47.1.3
+  plus additions). Publish scripts tag it `forge` + `neoforge`. Don't use post-47.1.3 API (e.g. the
+  `FMLJavaModLoadingContext` constructor parameter) or that claim breaks.
+- Forge bundles **upstream Mixin 0.8.5: no injectors in interfaces.** Band A's `MixinContainerEntity`
+  is excluded there; `MixinMinecartUnpack` / `MixinChestBoatUnpack` merge an override of the
+  `ContainerEntity` default instead.
+- Production is **SRG-named**: the shipped jar is `reobfJar` output (build/libs), which needs the
+  Mixin AP refmap and the `MixinConfigs` manifest attribute. Dev runs are Mojang-named and cannot
+  catch a refmap break. `python scripts/smoke.py --prod forge --prod neoforge-1.20.1` runs the
+  shipped jar on real installer-built servers.
 
 **NeoForge coverage differs from Fabric, for reasons outside our control:**
 
-- NeoForge has no 1.20.1 outside the legacy MDG plugin, and no 1.20.5 line, so it starts at 1.20.6.
+- NeoForge has no 1.20.5 line, so its own bands start at 1.20.6; NeoForge 1.20.1 runs the Forge jar.
 - MC 1.21 (NeoForge 21.0) and MC 1.21.2 (NeoForge 21.2) are not covered: `neoforge_range` on the
   neighbouring JARs refuses to load there, confirmed by booting them.
 - NeoForge 21.6, 21.7 and 21.9 have **no stable builds at all** — every published `21.6.x` /
   `21.9.x` is a `-beta` (checked against `maven.neoforged.net`). MC 1.21.6–1.21.8 ride the 21.8
   build, and 1.21.9–1.21.10 ride the 21.10 build.
+- **NeoForge 26.3 is beta-only** (`26.3.0.x-beta`). The publish scripts force that JAR to `beta`
+  through `BETA_ONLY_BANDS`; drop the entry and re-pin once a stable 26.3 build lands.
 - **1.21.5 is its own band on both loaders.** `SavedData.Factory` was removed at 1.21.5, not 1.21.6
   — the 1.21.4 JAR cannot run there, though 0.1.x advertised it for exactly that.
 
 | Band dir | Loader | MC covered | ids | vehicle | store | savedtype | open |
 | -------- | ------ | ---------- | --- | ------- | ----- | --------- | ---- |
 | 1.20.1-fabric | F | 1.20.1 | *(fork — Java 17)* | | | | |
+| 1.20.1-forge | Forge | 1.20.1 (+ NeoForge 1.20.1) | *(Band A fork — Java 17)* | | | | |
 | 1.20.5-fabric | F | 1.20.5–1.20.6 | location | legacy | nbt | — | player |
 | 1.20.6-neoforge | N | 1.20.6 | location | legacy | nbt | — | player |
 | 1.21-fabric | F | 1.21 | location | legacy | nbt | — | player |
@@ -146,6 +178,7 @@ the same contract and the same reason strings, so the port is mechanical.
 | 1.21.11-fabric / -neoforge | F+N | 1.21.11 | identifier | moved | codec | string | containeruser |
 | 26.1.2 (both) | F+N | 26.1.2 | identifier | moved | codec | id | containeruser |
 | 26.2 (both) | F+N | 26.2 | identifier | moved | codec | id | containeruser |
+| 26.3 (both) | F+N | 26.3 | identifier | moved | codec | id | containeruser |
 
 Where each split lands: `getContainerLootTable` at **1.21.2**; `SavedDataType`+`Codec` at
 **1.21.5**; `startOpen(ContainerUser)` at **1.21.9**; `Identifier` + vehicle package move at
@@ -173,11 +206,11 @@ widely-circulated matrices claim stable NeoForge exists for 21.6 / 21.9; it does
 
 ## Verification
 
-**Release gates, all three, before every publish.** Compiling proves little: 0.3.0 passed the build
+**Release gates, every one, before every publish.** Compiling proves little: 0.3.0 passed the build
 gate with a 1.20.1 JAR that crashed at boot, chest boats that opened empty, and NeoForge listings
 for versions the JARs refused to load on.
 
-1. `./gradlew buildAll` collects 22 `<version>` JARs into `build/release/` (older versions stay in
+1. `./gradlew buildAll` collects 25 `<version>` JARs into `build/release/` (older versions stay in
    the folder too; the publish scripts filter by version).
 2. `python scripts/boot-matrix.py` boots every advertised (JAR, MC) pair, read from
    `BAND_GAME_VERSIONS`, and runs the headless sweep below on each. No client, no foreground needed.
@@ -186,6 +219,10 @@ for versions the JARs refused to load on.
    cycles, vehicles, and slots across a restart. It needs the Minecraft window in the foreground, so
    the PC cannot be used meanwhile. `--cleanup` removes its instances.
 
+4. `python scripts/smoke.py --all --migration` and `--prod forge --prod neoforge-1.20.1` cover what
+   the matrices don't: dev-run fixtures, the pre-rename `slashlootr` file migration, and the shipped
+   Forge jar. `--integrated` covers Fabric in singleplayer.
+
 Tested on the newest NeoForge for each MC version, not the build pinned in `gradle.properties`, and
 the 1.21.6-1.21.9 NeoForge lines are betas. `--two-players` covers one chest boat shared by two
 clients. A version Prism has not cached gets one online launch first, signed in with Prism's default
@@ -193,6 +230,25 @@ account, because `--offline` never downloads.
 
 `--migrate 1.21.4:<old> 1.21.5:<new>` on `client-matrix.py` checks that loot survives an upgrade. Keep
 old JARs in `<WORK>/old`. The save format is `{slot, item}` on every band: never let the stores drift.
+
+**Smoke gate detail:** `python scripts/smoke.py --all --migration` must pass every band (about an hour).
+It boots each band's `runServer` in a throwaway `smoke-world`, fails on any Mixin/loader/SlashLoot
+error, runs the hopper fixtures below over RCON, then re-boots with pre-rename `slashlootr` files and
+checks they migrate. Use `--band <name>` for one band. It runs on 25594/25595 (`--port` to move);
+other repos' test servers use 25590/25591. **A clean compile proves nothing about mixins**: 1.20.1
+shipped a startup crash from 0.2.0 to 0.3.3 because nothing ever booted it.
+
+**Integrated gate (Fabric):** `python scripts/smoke.py --all --integrated` runs the dedicated pass
+on every Fabric band, then opens the band's `runClient` straight into the same world
+(`--quickPlaySingleplayer`), so the mod has to load in a client JVM and serve an integrated server.
+A datapack generated from `FIXTURES` replaces RCON and reports through `say SMOKE ...` lines. It opens
+a real game window per band (about 25 minutes for all 13). **Both `fabric.mod.json` files must keep
+`"environment": "*"`:** up to 0.5.0 they said `"server"`, so Fabric skipped the mod in every client
+and singleplayer/LAN/e4mc worlds ran without it. The mod is client-safe because every hook bails on
+a client level (`FabricBridge` returns `PASS`, the mixins check `isClientSide`/`ServerLevel`); keep it
+that way, since a non-`PASS` from a client-side `UseBlockCallback` stops the interaction packet.
+
+The script automates the manual pass below. Keep them in step.
 
 **Headless functional pass** (no client needed — a hopper under a container triggers
 `unpackLootTable`, which is the exact path the mixins hook). Boot a bare Fabric server with the
@@ -208,6 +264,10 @@ data get block <p>          # instanced: LootTable tag SURVIVES, hopper stays em
 Cover: chest (instanced), chest with its table in `lootTableBlocklist` (must fall back to vanilla),
 `minecraft:hopper` with a loot table (unsupported container — must fall back to vanilla), barrel,
 chest minecart. Set `debugLogging: true` and check each verdict line reads correctly.
+
+**Use non-default ports.** LocalServer is often running and holds 25565 / 25575; a test server on
+the defaults fails to bind, and an RCON client on 25575 talks to LocalServer instead. Set
+`server-port` / `rcon.port` (e.g. 25590 / 25591) in the test server's `server.properties`.
 
 On NeoForge the same sweep runs through ModDevGradle's generated server, which needs no separate
 install — `./gradlew :versions:1.21.1-neoforge:runServer`, with `run/eula.txt` and
@@ -243,4 +303,4 @@ A chest boat boards on a plain click, and opens on a sneak-click or the inventor
 
 ## Repository
 
-`slashdaemon/SlashLootr`. No `Co-Authored-By: Claude` trailer on commits. Not part of the TBA modpack — it is a server-side-only addon.
+`slashdaemon/SlashLoot`. No `Co-Authored-By: Claude` trailer on commits. Not part of the TBA modpack — it is a server-side addon (singleplayer/LAN load it client-side).
