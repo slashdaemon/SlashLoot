@@ -6,6 +6,7 @@
     "MixinRandomizableContainer",
     "MixinContainerEntity",
     "MixinEntityRemoved",
+    "MixinDecoratedPotBlock",
     "AccessorShulkerBoxBlock"
   ],
   "client": [],

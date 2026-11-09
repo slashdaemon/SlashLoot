@@ -628,10 +628,34 @@ handle, is left entirely to vanilla and hoppers work normally on it.
 
 Same cause, same scope.
 
-### Decorated pots and suspicious sand/gravel
+### Decorated pots: per-player, but never broken
 
-Not covered. They use the brushing mechanic rather than a container menu, so they would need their
-own hooks.
+From 1.20.5 a decorated pot implements `RandomizableContainer`, so the `unpackLootTable` mixin already
+keeps its world copy unrolled. What it lacks is a menu: vanilla hands pot loot out by breaking the
+pot. `handler/PotHandler` replaces that with Lootr's model. A survival break attempt (the cancellable
+`onPlayerBreakAttempt` hook), an empty-hand right-click, or the player's own projectile
+(`MixinDecoratedPotBlock#onProjectileHit`) drops that player's roll at the pot, shows the break
+particles to that player only (level event 2001), and leaves the pot standing. A second hit only
+wobbles it. Holding an item, right-click wobbles too, which also stops vanilla inserting the item into
+the shared world pot. Creative breaks it normally.
+
+A player's pot copy is a 1-slot container in the ordinary `blocks` map: rolled, dropped, left empty.
+Present-but-empty means "already claimed", so no save-format change. A pot destroyed by an explosion
+or piston drops nothing, like any instanced container. MC 1.20.1 pots hold no loot, so Band A is
+unchanged.
+
+### Suspicious sand/gravel and item frames
+
+Not covered. Brushing has no container menu and would need its own hooks. Lootr instances both.
+
+### Migrating from Lootr
+
+`store/LootrImport` reads Lootr 1.21.x's per-container files and matches each to a container by loot
+table + seed (a random 64-bit value, so it survives moved builds and can't collide with a new world's
+containers). Records are claimed lazily on the first interaction with a container SlashLoot has no
+entry for, so no chunk is loaded and `Handling` stays side-effect free. Items go through vanilla's
+DataFixer before `ItemStack.CODEC`, so a 1.21.1 dump imports into a newer world. Turning Lootr's
+custom blocks back into vanilla ones is not SlashLoot's job and has to keep `LootTable`/`LootTableSeed`.
 
 ### No looted-state visual
 
@@ -655,7 +679,7 @@ In rough order of effort vs. value:
 1. **Two-player client verification on the remaining bands.** Band C is verified end-to-end; the
    others share its source but their compat variants are only compiler-checked.
 2. **Comparator output** mixin for instanced containers, returning a sensible per-player value.
-3. **Decorated pots / suspicious sand & gravel** — separate mixin hooks on the brushing path.
+3. **Suspicious sand & gravel** — separate hooks on the brushing path (pots shipped in 0.6.0).
 4. **Companion client mod** for the looted-state visual indicator. Optional install; server keeps working with vanilla clients.
 5. **Loot decay / re-roll**: optional config knob to clear a player's personal copy after N MC days, prompting a re-roll on next open.
 6. **Per-player seed strategy** as a config option (deterministic vs. true-random-per-open).

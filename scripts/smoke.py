@@ -10,6 +10,8 @@ crash report, then places the standard hopper fixtures over RCON and checks each
     chest minecart over hopper     INSTANCE  - LootTable tag survives
     blocklisted chest over hopper  vanilla   - tag consumed by the vanilla roll
     hopper with a loot table       vanilla   - unsupported container, tag consumed
+    decorated pot over hopper      INSTANCE  - LootTable tag survives (1.20.5+ only)
+    blocklisted pot over hopper    vanilla   - tag consumed (1.20.5+ only)
 
 --migration adds a second boot: the config and save are swapped for their pre-0.4.0 `slashlootr`
 names and the band must move them over (`Moved config`, `Migrated`, new save file on disk).
@@ -94,6 +96,23 @@ FIXTURES = [
     ], True),
 ]
 MINECART_SELECTOR = "@e[type=minecraft:chest_minecart,tag=smoke,limit=1]"
+
+# Decorated pots only hold loot from MC 1.20.5 (1.20.1's pot has no loot table at all), so Band A
+# runs without these.
+POT_FIXTURES = [
+    ("decorated pot", (20, 100, 0), [
+        "setblock 20 99 0 minecraft:hopper[facing=down]",
+        'setblock 20 100 0 minecraft:decorated_pot{LootTable:"%s",LootTableSeed:1L}' % TABLE,
+    ], True),
+    ("blocklisted pot", (24, 100, 0), [
+        "setblock 24 99 0 minecraft:hopper[facing=down]",
+        'setblock 24 100 0 minecraft:decorated_pot{LootTable:"%s",LootTableSeed:1L}' % BLOCKED,
+    ], False),
+]
+
+
+def fixtures_for(band):
+    return FIXTURES + ([] if band.startswith("1.20.1") else POT_FIXTURES)
 
 
 # --------------------------------------------------------------------------- bands
@@ -210,6 +229,101 @@ def _legacy_save(data_version):
     root = (b"\x0a" + name("") + b"\x0a" + name("data") + data
             + b"\x03" + name("DataVersion") + struct.pack(">i", data_version) + b"\x00")
     return gzip.compress(root)
+
+
+def _nbt(value, name=None):
+    """Tiny NBT encoder for fixtures. dict=compound, str=string, ("b"|"i"|"l", n), ("I", [ints]),
+    ("L", [tagged values]) = list of tagged values, list of dicts = list of compounds."""
+    def s(k):
+        e = k.encode()
+        return struct.pack(">H", len(e)) + e
+
+    def payload(v):
+        if isinstance(v, dict):
+            return 10, b"".join(_nbt(x, k) for k, x in v.items()) + bytes([0])
+        if isinstance(v, str):
+            return 8, s(v)
+        if isinstance(v, list):  # list of compounds
+            return 9, bytes([10]) + struct.pack(">i", len(v)) + b"".join(payload(x)[1] for x in v)
+        kind, n = v
+        if kind == "b":
+            return 1, struct.pack(">b", n)
+        if kind == "i":
+            return 3, struct.pack(">i", n)
+        if kind == "l":
+            return 4, struct.pack(">q", n)
+        if kind == "I":
+            return 11, struct.pack(">i", len(n)) + struct.pack(">%di" % len(n), *n)
+        if kind == "L":
+            items = [payload(x) for x in n]
+            tag = items[0][0] if items else 0
+            return 9, bytes([tag]) + struct.pack(">i", len(items)) + b"".join(p for _, p in items)
+        raise ValueError(kind)
+
+    tag, body = payload(value)
+    return bytes([tag]) + (s(name) if name is not None else b"") + body
+
+
+def _lootr_file(data_version, new_type, table=None, seed=None, inventories=(), openers=()):
+    """A Lootr 1.21.x per-container data file, as `world/data/lootr/<c>/<cc>/<uuid>.dat` holds it."""
+    data = {"newType": "lootr:" + new_type, "dimension": "minecraft:overworld",
+            "position": ("I", [1, 64, 2]), "size": ("i", 27)}
+    if table:
+        data["table"] = table
+        data["seed"] = ("l", seed)
+    data["inventories"] = [{"uuid": ("I", list(u)), "chest": {"Items": [
+        {"Slot": ("b", 0), "id": "minecraft:stone", "count": ("i", 3)}]}} for u in inventories]
+    data["openers"] = ("L", [("I", list(u)) for u in openers])
+    return gzip.compress(_nbt({"data": data, "DataVersion": ("i", data_version)}, ""))
+
+
+LOOTR_FIXTURE = "lootr-fixture"
+
+
+def seed_lootr_fixture(server):
+    """Five Lootr files: an importable chest, pot and minecart, an unsupported type (suspicious sand),
+    and a barrel with no loot table. Expect 3 importable."""
+    world = server.run / WORLD
+    level = _nbt_read(gzip.decompress((world / "level.dat").read_bytes()))
+    dv = level["Data"]["DataVersion"]
+    a, b = (1, 2, 3, 4), (5, 6, 7, 8)
+    files = {
+        "1/1a/chest.dat": _lootr_file(dv, "chest", TABLE, 4242, inventories=[a], openers=[a, b]),
+        "2/2b/pot.dat": _lootr_file(dv, "pot", "minecraft:pots/trial_chambers/corridor", 99, openers=[a]),
+        "3/3c/cart.dat": _lootr_file(dv, "minecart", TABLE, 77, inventories=[b], openers=[b]),
+        "4/4d/sand.dat": _lootr_file(dv, "suspicious_sand", "minecraft:archaeology/desert_well", 5),
+        "5/5e/notable.dat": _lootr_file(dv, "barrel"),
+    }
+    root = server.run / LOOTR_FIXTURE
+    shutil.rmtree(root, ignore_errors=True)
+    for rel, blob in files.items():
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(blob)
+
+
+def check_lootr_import(server, rcon):
+    """Scan + stage + status + discard over RCON. Claiming needs a player, so it is a client-pass item."""
+    seed_lootr_fixture(server)
+    results = []
+    dry = rcon.cmd(f'slashloot lootr import "{LOOTR_FIXTURE}"')
+    want = ["files=5", "importable=3", "chest=1", "minecart=1", "pot=1",
+            "players with leftovers=2", "looted, nothing left=2", "no table/seed=1", "suspicious_sand=1"]
+    missing = [w for w in want if w not in dry]
+    results.append(("lootr import: dry run", not missing, "" if not missing else f"missing {missing} in: {dry[:300]}"))
+    index = server.run / WORLD / "slashloot-lootr-import.json"
+    results.append(("lootr import: dry run writes nothing", not index.exists(), "" if not index.exists() else "index written by a dry run"))
+    rcon.cmd(f'slashloot lootr import "{LOOTR_FIXTURE}" confirm')
+    status = rcon.cmd("slashloot lootr status")
+    ok = index.exists() and "3 record(s)" in status
+    results.append(("lootr import: confirm stages", ok, "" if ok else f"index {'ok' if index.exists() else 'MISSING'}; status: {status[:200]}"))
+    escape = rcon.cmd('slashloot lootr import "../.."')
+    refused = "not a directory inside" in escape
+    results.append(("lootr import: refuses paths outside server", refused, "" if refused else escape[:200]))
+    gone = rcon.cmd("slashloot lootr discard")
+    ok = "discarded 3" in gone and "0 record(s)" in rcon.cmd("slashloot lootr status")
+    results.append(("lootr import: discard", ok, "" if ok else gone[:200]))
+    return results
 
 
 # --------------------------------------------------------------------------- RCON
@@ -426,12 +540,13 @@ def check_fixtures(server, rcon):
     # 1.21.9 dropped spawn chunks: with no player online nothing is loaded, and setblock fails silently.
     rcon.cmd("forceload add 0 0 31 15")
     time.sleep(2)
-    for _, _, setup, _ in FIXTURES:
+    fixtures = fixtures_for(server.band)
+    for _, _, setup, _ in fixtures:
         for c in setup:
             rcon.cmd(c)
     time.sleep(6)  # hoppers poll every 8 ticks; give every fixture several passes
     log = server.log_text()
-    for name, (x, y, z), _, instanced in FIXTURES:
+    for name, (x, y, z), _, instanced in fixtures:
         if name == "chest minecart":
             reply = rcon.cmd(f"data get entity {MINECART_SELECTOR} LootTable")
             verdict = re.search(r"chest_minecart.*-> INSTANCE", log)
@@ -450,6 +565,8 @@ def check_fixtures(server, rcon):
             why = "" if ok else (f"expected vanilla roll; tag {'KEPT' if table_kept else 'gone'}, "
                                  f"verdict {'INSTANCE' if verdict else 'none'}, hopper {'filled' if rolled else 'EMPTY'}")
         results.append((name, ok, why))
+    if not server.band.startswith("1.20.1"):
+        results += check_lootr_import(server, rcon)
     return results
 
 
@@ -501,16 +618,17 @@ def fixture_key(name):
     return name.replace(" ", "_")
 
 
-def write_fixture_pack(world):
+def write_fixture_pack(world, band):
     """The datapack that replaces RCON on an integrated server: same FIXTURES, `say` for results."""
     # The dedicated pass already ran in this world: clear its containers and filled hoppers first.
     clear = [f"kill @e[type=minecraft:chest_minecart,tag=smoke]"]
-    for _, (x, y, z), _, _ in FIXTURES:
+    fixtures = fixtures_for(band)
+    for _, (x, y, z), _, _ in fixtures:
         clear += [f"setblock {x} {y} {z} minecraft:air", f"setblock {x} {y - 1} {z} minecraft:air"]
-    setup = clear + [c for _, _, cmds, _ in FIXTURES for c in cmds] + \
+    setup = clear + [c for _, _, cmds, _ in fixtures for c in cmds] + \
         [f"schedule function {PACK}:check 120t"]
     check = []
-    for name, (x, y, z), _, _ in FIXTURES:
+    for name, (x, y, z), _, _ in fixtures:
         key = fixture_key(name)
         target = f"entity {MINECART_SELECTOR}" if name == "chest minecart" else f"block {x} {y} {z}"
         check += [f"execute if data {target} LootTable run say SMOKE {key} kept",
@@ -536,7 +654,7 @@ def write_fixture_pack(world):
         tag.write_text('{"values": ["%s:load"]}\n' % PACK, encoding="utf-8")
 
 
-def prepare_client_run(run):
+def prepare_client_run(run, band):
     """Copy the dedicated pass's world into saves/, add the fixture pack, set non-pausing options."""
     src = run / WORLD
     if not (src / "level.dat").exists():
@@ -544,7 +662,7 @@ def prepare_client_run(run):
     dst = run / "saves" / WORLD
     shutil.rmtree(dst, ignore_errors=True)
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("session.lock"))
-    write_fixture_pack(dst)
+    write_fixture_pack(dst, band)
     opts_path = run / "options.txt"
     lines = opts_path.read_text(encoding="utf-8").splitlines() if opts_path.exists() else []
     keep = [ln for ln in lines if ln.split(":", 1)[0] not in CLIENT_OPTIONS]
@@ -552,11 +670,11 @@ def prepare_client_run(run):
                          encoding="utf-8")
 
 
-def check_integrated(log):
+def check_integrated(log, band):
     results = [("loads in client", "SlashLoot loaded" in log, "" if "SlashLoot loaded" in log
                 else "no 'SlashLoot loaded' line - Fabric did not load the mod in the client")]
     said = set(re.findall(r"SMOKE (\S+ \S+)", log))
-    for name, (x, y, z), _, instanced in FIXTURES:
+    for name, (x, y, z), _, instanced in fixtures_for(band):
         key = fixture_key(name)
         kept = f"{key} kept" in said
         rolled = f"{key} hopper_filled" in said
@@ -579,14 +697,14 @@ def run_integrated(band, java_home, out_dir):
     client = IntegratedClient(band, java_home, out_dir)
     checks = []
     try:
-        prepare_client_run(client.run)
+        prepare_client_run(client.run, band)
         client.start()
         client.wait_done()
         time.sleep(2)
         text = client.log_text()
         errors = startup_errors(text)
         checks.append(("integrated: boots clean", not errors, errors[0] if errors else ""))
-        checks += check_integrated(text)
+        checks += check_integrated(text, band)
     except Exception as e:  # noqa: BLE001 - a FAIL row, keep going with other bands
         text = client.log_text()
         errors = startup_errors(text)

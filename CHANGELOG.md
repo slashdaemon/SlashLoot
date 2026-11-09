@@ -2,6 +2,28 @@
 
 All notable changes to SlashLoot. Dates are YYYY-MM-DD.
 
+## 0.6.0 — Unreleased
+
+- **New: per-player decorated pots** (Minecraft 1.20.5 and later). The loot pots in trial chambers
+  now work like SlashLoot's chests: every player gets their own loot. Hit a pot (or right-click it
+  with an empty hand) and your items pop out with a shatter effect that only you see. The pot stays
+  for everyone else, and hitting it again does nothing. Arrows and other projectiles from a player
+  claim that player's loot too and never break the pot. Pots can't be broken in survival; creative
+  mode still removes them. Turn this off with `"instancePots": false` in `config/slashloot.json`.
+- **Fixed: with `handleUnknownContainers` on, a loot pot opened a broken one-slot menu and dropped
+  nothing when broken.** Pots are now handled on their own, whatever that setting says.
+- **New: switching from Lootr keeps who already looted what.** Copy Lootr's `data/lootr` folder
+  (from the old world) anywhere inside the server folder and run
+  `/slashloot lootr import "<folder>"` for a dry run, then add `confirm`. Each Lootr container is
+  matched to its vanilla replacement by loot table and seed, so builds moved to new coordinates or
+  a new world still match. The first time a matched container is opened, players who looted it under
+  Lootr find exactly what they left in it, and everyone else gets fresh loot. Covers chests,
+  trapped chests, barrels, shulker boxes, chest minecarts and pots from Lootr 1.21.x.
+  `/slashloot lootr status` shows what is still waiting; `/slashloot lootr discard` drops it.
+  SlashLoot does not convert Lootr's blocks back to vanilla itself; that has to happen first, with
+  the loot table and seed kept.
+- Minecraft 1.20.1 files (Fabric and Forge) are unchanged: 1.20.1 pots never hold loot.
+
 ## 0.5.2 — 2026-10-02
 
 Double chests now follow vanilla's rules exactly. Thanks to TheArchictect for the detailed report.

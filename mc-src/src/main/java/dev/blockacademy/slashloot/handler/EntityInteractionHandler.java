@@ -4,6 +4,7 @@ import dev.blockacademy.slashloot.compat.Vehicles;
 import dev.blockacademy.slashloot.core.Handling;
 import dev.blockacademy.slashloot.core.LootContainer;
 import dev.blockacademy.slashloot.core.LootRoller;
+import dev.blockacademy.slashloot.store.LootrImport;
 import dev.blockacademy.slashloot.store.PlayerLootEntry;
 import dev.blockacademy.slashloot.store.SlashLootState;
 import net.minecraft.network.chat.Component;
@@ -41,11 +42,15 @@ public final class EntityInteractionHandler {
 
         ContainerEntity ce = (ContainerEntity) entity;
         SlashLootState store = SlashLootState.get(level);
+        ResourceKey<LootTable> table = Vehicles.lootTable(ce);
+        boolean fresh = !store.hasEntityEntry(entity.getUUID());
         PlayerLootEntry entry = store.entityEntry(entity.getUUID());
+        if (fresh && table != null) {
+            LootrImport.claimInto(level, LootrImport.Category.ENTITY, table, Vehicles.lootSeed(ce), entry, decision.slots());
+        }
 
         LootContainer container = entry.get(player.getUUID());
         if (container == null) {
-            ResourceKey<LootTable> table = Vehicles.lootTable(ce);
             container = entry.newContainer(decision.slots());
             if (table != null) {
                 LootRoller.rollForEntity(level, entity, table, Vehicles.lootSeed(ce), player, container);

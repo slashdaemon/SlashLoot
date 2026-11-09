@@ -52,6 +52,15 @@ public final class FabricBridge implements LoaderBridge {
     }
 
     @Override
+    public void onPlayerBreakAttempt(BreakAttemptHook hook) {
+        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
+            if (world.isClientSide() || !(world instanceof ServerLevel level)) return true;
+            if (!(player instanceof ServerPlayer sp)) return true;
+            return hook.allow(sp, level, pos, blockEntity);
+        });
+    }
+
+    @Override
     public void onPlayerBreakBlock(BlockBreakHook hook) {
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
             if (world instanceof ServerLevel level) hook.broke(level, pos);

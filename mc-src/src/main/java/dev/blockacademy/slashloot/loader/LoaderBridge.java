@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 
 import com.mojang.brigadier.CommandDispatcher;
@@ -41,6 +42,12 @@ public interface LoaderBridge {
     /** Brigadier command registration. */
     void onRegisterCommands(CommandHook hook);
 
+    /**
+     * A player is about to break a block. Return false to cancel the break; the loader then re-sends
+     * the block to the client. Fires on the server only, before the block is touched.
+     */
+    void onPlayerBreakAttempt(BreakAttemptHook hook);
+
     /** A player finished breaking a block. Fires after the block is gone. */
     void onPlayerBreakBlock(BlockBreakHook hook);
 
@@ -60,6 +67,11 @@ public interface LoaderBridge {
     @FunctionalInterface
     interface CommandHook {
         void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext ctx);
+    }
+
+    @FunctionalInterface
+    interface BreakAttemptHook {
+        boolean allow(ServerPlayer player, ServerLevel level, BlockPos pos, BlockEntity blockEntity);
     }
 
     @FunctionalInterface

@@ -44,6 +44,13 @@ public final class SlashLootConfig {
     public boolean handleUnknownContainers = false;
 
     /**
+     * Per-player decorated pots (trial-chamber corridors). Each player who hits a pot gets their own
+     * roll dropped at it, once; the pot never breaks in survival. False leaves pots to vanilla, where
+     * the first player to break one takes its loot.
+     */
+    public boolean instancePots = true;
+
+    /**
      * Forward open/close to the real world container so lids animate, barrels flip their
      * {@code open} state, and trapped chests emit redstone. Vanilla plays the open sound itself
      * when this is on, so {@link #playOpenCloseSounds} only applies when this is off.
