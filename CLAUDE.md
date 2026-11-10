@@ -1,10 +1,12 @@
 # CLAUDE.md — SlashLoot
 
-Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required** on a dedicated server; for singleplayer/LAN it goes in the player's own `mods/` (the integrated server). Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
+Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required** on a dedicated server; for singleplayer/LAN it goes in the player's own `mods/` (the integrated server). A vanilla-compatible per-player loot mod.
+
+**Never name other mods (in particular other per-player loot mods) in anything in this repo: code, comments, docs, changelog, release notes, commands, file names.** Owner rule. Say "another per-player loot mod" or "block-swap mods".
 
 ## Why this exists
 
-Lootr/myLoot achieve per-player chests by swapping vanilla blocks for custom `LootrChestBlock`/`MyLootChestBlock` variants. That breaks vanilla compatibility and requires clients to install the mod. SlashLoot does the same job by intercepting two vanilla code paths server-side — the chest stays a `minecraft:chest` and vanilla clients connect normally.
+Block-swap per-player loot mods achieve per-player chests by swapping vanilla blocks for custom chest-block variants. That breaks vanilla compatibility and requires clients to install the mod. SlashLoot does the same job by intercepting two vanilla code paths server-side — the chest stays a `minecraft:chest` and vanilla clients connect normally.
 
 ## How it works
 
@@ -71,7 +73,7 @@ SlashLoot/
 │       ├── handler/{ContainerInteraction,EntityInteraction,Pot,Cleanup}Handler.java
 │       ├── command/SlashLootCommand.java
 │       ├── config/SlashLootConfig.java
-│       ├── store/{PlayerLootEntry,LootrImport}.java
+│       ├── store/{PlayerLootEntry,LootImport}.java
 │       └── mixin/{MixinRandomizableContainer,MixinContainerEntity,MixinEntityRemoved,MixinDecoratedPotBlock}.java
 ├── compat/                     per-generation seams, a few dozen lines each
 │   ├── ids-location/           ≤1.21.10  ResourceKey#location(), hasPermission(2)
@@ -241,8 +243,8 @@ data get block <p>          # instanced: LootTable tag SURVIVES, hopper stays em
 Cover: chest (instanced), chest with its table in `lootTableBlocklist` (must fall back to vanilla),
 `minecraft:hopper` with a loot table (unsupported container — must fall back to vanilla), barrel,
 chest minecart, and on 1.20.5+ a `decorated_pot` (instanced) and a blocklisted pot (vanilla).
-smoke.py also runs `/slashloot lootr import` dry-run/confirm/status/discard against a generated
-Lootr fixture folder on 1.20.5+ bands; claiming needs a player, so it is in the client pass. Set `debugLogging: true` and check each verdict line reads correctly.
+smoke.py also runs `/slashloot import` dry-run/confirm/status/discard against a generated
+import fixture folder on 1.20.5+ bands; claiming needs a player, so it is in the client pass. Set `debugLogging: true` and check each verdict line reads correctly.
 
 **Use non-default ports.** LocalServer is often running and holds 25565 / 25575; a test server on
 the defaults fails to bind, and an RCON client on 25575 talks to LocalServer instead. Set
@@ -269,27 +271,27 @@ Repeat for: trapped chest, barrel, shulker box, chest minecart, double chest (bo
 A only, pot stays; B hits → B's own roll; A hits again → wobble only; A's arrow → no shatter; right-click
 holding an item → nothing inserted; creative break removes it.
 
-**Lootr import:** stage a real Lootr `data/lootr` copy, place a vanilla container with a staged
+**Loot import:** stage a real per-player loot data copy, place a vanilla container with a staged
 record's table + seed at any position; a player in that record's `inventories` sees their leftovers,
-an opener with no inventory sees an empty copy, anyone else gets a fresh roll; `lootr status` drops by one.
+an opener with no inventory sees an empty copy, anyone else gets a fresh roll; `import status` drops by one.
 
-## Lootr import
+## Loot import
 
-`store/LootrImport` reads Lootr 1.21.x per-container files (`data/lootr/<c>/<cc>/<uuid>.dat`; Lootr
-need not be installed) and matches them to containers by **loot table + seed**, never position, so
-moved builds and new worlds work and new-seed containers can't collide. `/slashloot lootr import
-"<dir>" [confirm]` writes `<world>/slashloot-lootr-import.json` (key → file, no item data). The
-first time a container with no SlashLoot entry is touched, `claimInto` reads that one file —
-items through vanilla's DataFixer, then `ItemStack.CODEC` — and fills the entry. It is called only
-from the interaction paths, never from `Handling`/`unpackLootTable`. Converting Lootr's blocks back
-to vanilla (keeping `LootTable`/`LootTableSeed`) is outside this mod. Lootr 1.20 and 26.x formats
-are not read.
+`store/LootImport` reads a 1.21.1 per-container file format from another per-player loot mod
+(`<c>/<cc>/<uuid>.dat`, one gzipped SavedData each; the old mod need not be installed) and matches
+records to containers by **loot table + seed**, never position, so moved builds and new worlds work
+and new-seed containers can't collide. `/slashloot import "<dir>" [confirm]` writes
+`<world>/slashloot-import.json` (key → file, no item data). The first time a container with no
+SlashLoot entry is touched, `claimInto` reads that one file — items through vanilla's DataFixer,
+then `ItemStack.CODEC` — and fills the entry. It is called only from the interaction paths, never
+from `Handling`/`unpackLootTable`. Converting the old mod's blocks back to vanilla (keeping
+`LootTable`/`LootTableSeed`) is outside this mod. Other versions of that format are not read.
 
 ## Known limitations
 
-- **Hoppers extract nothing** from naturally-generated containers SlashLoot instances (the world container is always empty), pots included. Matches Lootr. Blacklisted and unsupported containers are unaffected.
+- **Hoppers extract nothing** from naturally-generated containers SlashLoot instances (the world container is always empty), pots included. Blacklisted and unsupported containers are unaffected.
 - **An instanced pot destroyed by an explosion, piston or `/setblock` drops nothing** (its world copy is never rolled); the prune then drops its entry, as for chests.
-- **Suspicious sand/gravel and item frames are not instanced** (Lootr does both); the Lootr import dry run counts them as unsupported.
+- **Suspicious sand/gravel and item frames are not instanced**; the import dry run counts them as unsupported.
 - **Comparator output reads 0** from those same containers, for the same reason.
 - **No decay / re-roll** — per-player loot is permanent by design.
 - **Prune skips unloaded chunks.** Entries for containers destroyed in chunks that never load again are not reclaimed; they are cheap and get dropped on the next pass that finds the chunk loaded.

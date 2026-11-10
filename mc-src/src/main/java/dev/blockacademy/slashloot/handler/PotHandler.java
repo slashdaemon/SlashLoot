@@ -5,7 +5,7 @@ import dev.blockacademy.slashloot.core.DebugLog;
 import dev.blockacademy.slashloot.core.Handling;
 import dev.blockacademy.slashloot.core.LootContainer;
 import dev.blockacademy.slashloot.core.LootRoller;
-import dev.blockacademy.slashloot.store.LootrImport;
+import dev.blockacademy.slashloot.store.LootImport;
 import dev.blockacademy.slashloot.store.PlayerLootEntry;
 import dev.blockacademy.slashloot.store.SlashLootState;
 import net.minecraft.core.BlockPos;
@@ -29,7 +29,7 @@ import net.minecraft.world.level.storage.loot.LootTable;
  * Per-player decorated pots. A pot has no menu: vanilla hands its loot out by breaking it, so the
  * first player to break one takes it for everyone. Here each player who hits a pot gets their own
  * roll dropped at it, exactly once, and the pot itself never breaks in survival — the behaviour
- * players had under Lootr.
+ * players expect from per-player loot mods.
  *
  * <p>Every entry point asks {@link Handling} first and acts only on a {@code POT} INSTANCE verdict,
  * so a pot left to vanilla (pots disabled, table or dimension blocklisted) is untouched here too.
@@ -104,7 +104,7 @@ public final class PotHandler {
         boolean fresh = !store.hasBlockEntry(pos.asLong());
         PlayerLootEntry entry = store.blockEntry(pos.asLong());
         if (fresh && table != null) {
-            LootrImport.claimInto(level, LootrImport.Category.POT, table, seed, entry, 1);
+            LootImport.claimInto(level, LootImport.Category.POT, table, seed, entry, 1);
         }
 
         LootContainer mine = entry.get(player.getUUID());

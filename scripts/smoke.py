@@ -264,9 +264,9 @@ def _nbt(value, name=None):
     return bytes([tag]) + (s(name) if name is not None else b"") + body
 
 
-def _lootr_file(data_version, new_type, table=None, seed=None, inventories=(), openers=()):
-    """A Lootr 1.21.x per-container data file, as `world/data/lootr/<c>/<cc>/<uuid>.dat` holds it."""
-    data = {"newType": "lootr:" + new_type, "dimension": "minecraft:overworld",
+def _import_file(data_version, new_type, table=None, seed=None, inventories=(), openers=()):
+    """A 1.21.1 per-player loot data file, as an older mod kept them at `<c>/<cc>/<uuid>.dat`."""
+    data = {"newType": "legacy:" + new_type, "dimension": "minecraft:overworld",
             "position": ("I", [1, 64, 2]), "size": ("i", 27)}
     if table:
         data["table"] = table
@@ -277,24 +277,24 @@ def _lootr_file(data_version, new_type, table=None, seed=None, inventories=(), o
     return gzip.compress(_nbt({"data": data, "DataVersion": ("i", data_version)}, ""))
 
 
-LOOTR_FIXTURE = "lootr-fixture"
+IMPORT_FIXTURE = "import-fixture"
 
 
-def seed_lootr_fixture(server):
-    """Five Lootr files: an importable chest, pot and minecart, an unsupported type (suspicious sand),
+def seed_import_fixture(server):
+    """Five import files: an importable chest, pot and minecart, an unsupported type (suspicious sand),
     and a barrel with no loot table. Expect 3 importable."""
     world = server.run / WORLD
     level = _nbt_read(gzip.decompress((world / "level.dat").read_bytes()))
     dv = level["Data"]["DataVersion"]
     a, b = (1, 2, 3, 4), (5, 6, 7, 8)
     files = {
-        "1/1a/chest.dat": _lootr_file(dv, "chest", TABLE, 4242, inventories=[a], openers=[a, b]),
-        "2/2b/pot.dat": _lootr_file(dv, "pot", "minecraft:pots/trial_chambers/corridor", 99, openers=[a]),
-        "3/3c/cart.dat": _lootr_file(dv, "minecart", TABLE, 77, inventories=[b], openers=[b]),
-        "4/4d/sand.dat": _lootr_file(dv, "suspicious_sand", "minecraft:archaeology/desert_well", 5),
-        "5/5e/notable.dat": _lootr_file(dv, "barrel"),
+        "1/1a/chest.dat": _import_file(dv, "chest", TABLE, 4242, inventories=[a], openers=[a, b]),
+        "2/2b/pot.dat": _import_file(dv, "pot", "minecraft:pots/trial_chambers/corridor", 99, openers=[a]),
+        "3/3c/cart.dat": _import_file(dv, "minecart", TABLE, 77, inventories=[b], openers=[b]),
+        "4/4d/sand.dat": _import_file(dv, "suspicious_sand", "minecraft:archaeology/desert_well", 5),
+        "5/5e/notable.dat": _import_file(dv, "barrel"),
     }
-    root = server.run / LOOTR_FIXTURE
+    root = server.run / IMPORT_FIXTURE
     shutil.rmtree(root, ignore_errors=True)
     for rel, blob in files.items():
         p = root / rel
@@ -302,27 +302,27 @@ def seed_lootr_fixture(server):
         p.write_bytes(blob)
 
 
-def check_lootr_import(server, rcon):
+def check_loot_import(server, rcon):
     """Scan + stage + status + discard over RCON. Claiming needs a player, so it is a client-pass item."""
-    seed_lootr_fixture(server)
+    seed_import_fixture(server)
     results = []
-    dry = rcon.cmd(f'slashloot lootr import "{LOOTR_FIXTURE}"')
+    dry = rcon.cmd(f'slashloot import "{IMPORT_FIXTURE}"')
     want = ["files=5", "importable=3", "chest=1", "minecart=1", "pot=1",
             "players with leftovers=2", "looted, nothing left=2", "no table/seed=1", "suspicious_sand=1"]
     missing = [w for w in want if w not in dry]
-    results.append(("lootr import: dry run", not missing, "" if not missing else f"missing {missing} in: {dry[:300]}"))
-    index = server.run / WORLD / "slashloot-lootr-import.json"
-    results.append(("lootr import: dry run writes nothing", not index.exists(), "" if not index.exists() else "index written by a dry run"))
-    rcon.cmd(f'slashloot lootr import "{LOOTR_FIXTURE}" confirm')
-    status = rcon.cmd("slashloot lootr status")
+    results.append(("import: dry run", not missing, "" if not missing else f"missing {missing} in: {dry[:300]}"))
+    index = server.run / WORLD / "slashloot-import.json"
+    results.append(("import: dry run writes nothing", not index.exists(), "" if not index.exists() else "index written by a dry run"))
+    rcon.cmd(f'slashloot import "{IMPORT_FIXTURE}" confirm')
+    status = rcon.cmd("slashloot import status")
     ok = index.exists() and "3 record(s)" in status
-    results.append(("lootr import: confirm stages", ok, "" if ok else f"index {'ok' if index.exists() else 'MISSING'}; status: {status[:200]}"))
-    escape = rcon.cmd('slashloot lootr import "../.."')
+    results.append(("import: confirm stages", ok, "" if ok else f"index {'ok' if index.exists() else 'MISSING'}; status: {status[:200]}"))
+    escape = rcon.cmd('slashloot import "../.."')
     refused = "not a directory inside" in escape
-    results.append(("lootr import: refuses paths outside server", refused, "" if refused else escape[:200]))
-    gone = rcon.cmd("slashloot lootr discard")
-    ok = "discarded 3" in gone and "0 record(s)" in rcon.cmd("slashloot lootr status")
-    results.append(("lootr import: discard", ok, "" if ok else gone[:200]))
+    results.append(("import: refuses paths outside server", refused, "" if refused else escape[:200]))
+    gone = rcon.cmd("slashloot import discard")
+    ok = "discarded 3" in gone and "0 record(s)" in rcon.cmd("slashloot import status")
+    results.append(("import: discard", ok, "" if ok else gone[:200]))
     return results
 
 
@@ -566,7 +566,7 @@ def check_fixtures(server, rcon):
                                  f"verdict {'INSTANCE' if verdict else 'none'}, hopper {'filled' if rolled else 'EMPTY'}")
         results.append((name, ok, why))
     if not server.band.startswith("1.20.1"):
-        results += check_lootr_import(server, rcon)
+        results += check_loot_import(server, rcon)
     return results
 
 

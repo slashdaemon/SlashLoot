@@ -38,36 +38,36 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
- * Carries Lootr's per-player state over to SlashLoot: who already looted each container, and what
- * they left in it. Reads Lootr 1.21.x's on-disk format (one gzipped SavedData per container, at
- * {@code data/lootr/<c>/<cc>/<uuid>.dat}); Lootr itself need not be installed.
+ * Carries per-player state from a previous per-player loot mod over to SlashLoot: who already looted
+ * each container, and what they left in it. Reads the 1.21.1 per-container file format (one gzipped
+ * SavedData per container, {@code <c>/<cc>/<uuid>.dat}); the old mod need not be installed.
  *
- * <p><b>Matching is by loot table + seed, not position.</b> The Lootr blocks themselves are converted
+ * <p><b>Matching is by loot table + seed, not position.</b> The old mod's blocks themselves are converted
  * back to vanilla elsewhere, keeping {@code LootTable} and {@code LootTableSeed}. A seed is a random
  * 64-bit value, so {@code (table, seed)} identifies a container wherever its build ends up: pasted at
  * an offset, in another dimension, or in a fresh world whose own containers carry different seeds.
  * No chunk is ever loaded to do the match.
  *
- * <p>Two steps. {@code /slashloot lootr import <dir>} scans the files and, on {@code confirm}, writes an
- * index ({@code <world>/slashloot-lootr-import.json}, a key-to-file map, so no item data is copied).
+ * <p>Two steps. {@code /slashloot import <dir>} scans the files and, on {@code confirm}, writes an
+ * index ({@code <world>/slashloot-import.json}, a key-to-file map, so no item data is copied).
  * Then, the first time any player touches a container SlashLoot has no entry for, {@link #claimInto}
- * looks its key up and, on a hit, reads that one Lootr file into the container's entry and drops the
+ * looks its key up and, on a hit, reads that one file into the container's entry and drops the
  * key. That is a hash probe on the interaction path only — never from {@code unpackLootTable}, so
  * {@code Handling} stays side-effect free.
  *
  * <p>Version-neutral by construction: NBT is walked through DFU's {@link Dynamic}, item stacks are
  * brought up to this server's data version through vanilla's own DataFixer and then decoded with
- * {@link ItemStack#CODEC}. A Lootr dump from a 1.21.1 world therefore imports into a newer world too.
+ * {@link ItemStack#CODEC}. A dump from a 1.21.1 world therefore imports into a newer world too.
  */
-public final class LootrImport {
+public final class LootImport {
 
-    /** Which kind of SlashLoot container a Lootr record may be claimed by. */
+    /** Which kind of SlashLoot container an imported record may be claimed by. */
     public enum Category { BLOCK, ENTITY, POT }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final String INDEX_FILE = "slashloot-lootr-import.json";
+    private static final String INDEX_FILE = "slashloot-import.json";
 
-    /** Lootr's {@code newType} (namespace stripped) to the SlashLoot category that may claim it. */
+    /** The file's {@code newType} (namespace stripped) to the SlashLoot category that may claim it. */
     private static final Map<String, Category> TYPES = Map.of(
             "chest", Category.BLOCK,
             "trapped_chest", Category.BLOCK,
@@ -93,12 +93,12 @@ public final class LootrImport {
     private static Path cachedFor;
     private static Index cached;
 
-    private LootrImport() {}
+    private LootImport() {}
 
     // ------------------------------------------------------------------ claim
 
     /**
-     * Fills a brand-new container entry from Lootr's data when one matches this container's table and
+     * Fills a brand-new container entry from imported data when a record matches this container's table and
      * seed. Call only when the entry was just created, before any player's copy is rolled. A failure is
      * logged and leaves the record in place, so the container simply behaves as if never imported.
      */
@@ -114,7 +114,7 @@ public final class LootrImport {
 
         Category recCategory = TYPES.get(rec.type);
         if (recCategory != category) {
-            SlashLootCore.LOG.warn("Lootr import: {} matches a lootr:{} record but is a {} here - not imported",
+            SlashLootCore.LOG.warn("Import: {} matches a {} record but is a {} here - not imported",
                     key, rec.type, category);
             return;
         }
@@ -123,10 +123,10 @@ public final class LootrImport {
             int imported = materialise(level, serverDir().resolve(index.source).resolve(rec.file), entry, slots);
             index.records.remove(key);
             save(server, index);
-            SlashLootCore.LOG.info("Lootr import: carried {} player(s) over to {} in {}",
+            SlashLootCore.LOG.info("Import: carried {} player(s) over to {} in {}",
                     imported, key, Ids.dimension(level));
         } catch (IOException | RuntimeException e) {
-            SlashLootCore.LOG.warn("Lootr import: could not read " + rec.file + " for " + key + " - not imported", e);
+            SlashLootCore.LOG.warn("Import: could not read " + rec.file + " for " + key + " - not imported", e);
         }
     }
 
@@ -148,7 +148,7 @@ public final class LootrImport {
                         ? DataFixers.getDataFixer().update(References.ITEM_STACK, item, fileVersion, SharedConstants.WORLD_VERSION)
                         : item;
                 ItemStack.CODEC.parse(ops, fixed.getValue())
-                        .resultOrPartial(err -> SlashLootCore.LOG.warn("Lootr import: skipped an item in {}: {}", file.getFileName(), err))
+                        .resultOrPartial(err -> SlashLootCore.LOG.warn("Import: skipped an item in {}: {}", file.getFileName(), err))
                         .filter(s -> !s.isEmpty())
                         .ifPresent(s -> items.add(new SlotStack(slot, s)));
             }
@@ -164,7 +164,7 @@ public final class LootrImport {
             int size = slots;
             for (SlotStack s : items) size = Math.max(size, s.slot() + 1);
             if (size > slots) {
-                SlashLootCore.LOG.warn("Lootr import: {} needs {} slots, container has {} - kept every item",
+                SlashLootCore.LOG.warn("Import: {} needs {} slots, container has {} - kept every item",
                         file.getFileName(), size, slots);
             }
             LootContainer c = entry.newContainer(size);
@@ -196,7 +196,7 @@ public final class LootrImport {
         }
     }
 
-    /** Reads every Lootr data file under {@code dir}. No world state is touched. */
+    /** Reads every data file under {@code dir}. No world state is touched. */
     public static Report scan(Path dir) throws IOException {
         Report report = new Report();
         report.source = dir;
@@ -215,7 +215,7 @@ public final class LootrImport {
                 continue;
             }
             String type = data.get("newType").asString("");
-            if (type.isEmpty()) continue; // Lootr's own bookkeeping files (advancement / decay / refresh)
+            if (type.isEmpty()) continue; // the old mod's own bookkeeping files (advancement / decay / refresh)
             type = type.substring(type.indexOf(':') + 1);
             if (!TYPES.containsKey(type)) {
                 report.unsupported.merge(type, 1, Integer::sum);
@@ -229,7 +229,7 @@ public final class LootrImport {
             }
             String key = key(table, seed);
             if (seen.merge(key, 1, Integer::sum) > 1) {
-                // Two Lootr containers sharing a table and seed can't be told apart after conversion.
+                // Two containers sharing a table and seed can't be told apart after conversion.
                 if (report.records.remove(key) != null) report.ambiguous++;
                 report.ambiguous++;
                 continue;
@@ -267,7 +267,7 @@ public final class LootrImport {
         save(server, index);
     }
 
-    /** Staged records not yet claimed, by Lootr type. */
+    /** Staged records not yet claimed, by record type. */
     public static Map<String, Integer> pending(MinecraftServer server) {
         Map<String, Integer> out = new TreeMap<>();
         for (Rec rec : index(server).records.values()) out.merge(rec.type, 1, Integer::sum);
@@ -322,7 +322,7 @@ public final class LootrImport {
                     Index read = GSON.fromJson(Files.readString(path), Index.class);
                     if (read != null && read.records != null) loaded = read;
                 } catch (IOException | RuntimeException e) {
-                    SlashLootCore.LOG.warn("Lootr import: could not read " + INDEX_FILE + ", ignoring it", e);
+                    SlashLootCore.LOG.warn("Import: could not read " + INDEX_FILE + ", ignoring it", e);
                 }
             }
             cachedFor = path;

@@ -12,16 +12,15 @@ All notable changes to SlashLoot. Dates are YYYY-MM-DD.
   mode still removes them. Turn this off with `"instancePots": false` in `config/slashloot.json`.
 - **Fixed: with `handleUnknownContainers` on, a loot pot opened a broken one-slot menu and dropped
   nothing when broken.** Pots are now handled on their own, whatever that setting says.
-- **New: switching from Lootr keeps who already looted what.** Copy Lootr's `data/lootr` folder
-  (from the old world) anywhere inside the server folder and run
-  `/slashloot lootr import "<folder>"` for a dry run, then add `confirm`. Each Lootr container is
-  matched to its vanilla replacement by loot table and seed, so builds moved to new coordinates or
-  a new world still match. The first time a matched container is opened, players who looted it under
-  Lootr find exactly what they left in it, and everyone else gets fresh loot. Covers chests,
-  trapped chests, barrels, shulker boxes, chest minecarts and pots from Lootr 1.21.x.
-  `/slashloot lootr status` shows what is still waiting; `/slashloot lootr discard` drops it.
-  SlashLoot does not convert Lootr's blocks back to vanilla itself; that has to happen first, with
-  the loot table and seed kept.
+- **New: switching from another per-player loot mod keeps who already looted what.** First turn
+  the old mod's containers back into vanilla ones, keeping each one's loot table and seed; SlashLoot
+  doesn't do that step itself. Then copy the old world's per-player loot data folder anywhere inside
+  the server folder and run `/slashloot import "<folder>"` for a dry run, then add `confirm`.
+  Containers are matched by loot table and seed, not position, so builds moved to new coordinates or
+  a new world still match. The first time a matched container is opened, players who looted it
+  before find exactly what they left in it, and everyone else gets fresh loot. Covers chests,
+  trapped chests, barrels, shulker boxes, chest minecarts and pots, from 1.21.1 data.
+  `/slashloot import status` shows what is still waiting; `/slashloot import discard` drops it.
 - Minecraft 1.20.1 files (Fabric and Forge) are unchanged: 1.20.1 pots never hold loot.
 
 ## 0.5.2 — 2026-10-02
@@ -364,6 +363,6 @@ Initial implementation. Eight Minecraft version bands shipping out of the gate.
 - Chest lid animation (open sound plays via `OpenSoundFx`, but the lid stays closed because we bypass `ContainerOpenersCounter`).
 - `/slashlootr forget all` — currently emits an error suggesting the admin stop the server and delete `slashlootr.dat`.
 - Decorated pots and suspicious sand/gravel (different open mechanic — brushing — would need separate hooks).
-- Looted-state visual indicator (Lootr's gold→blue color change would require a companion client mod).
+- Looted-state visual indicator (a colour change on looted containers would require a companion client mod).
 - Loot decay / re-roll (each player's loot is currently permanent by design).
 - Runtime verification on LocalServer or a production deploy — code is compile-clean only.

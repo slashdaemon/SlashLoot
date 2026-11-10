@@ -8,7 +8,7 @@ import dev.blockacademy.slashloot.core.LootContainer;
 import dev.blockacademy.slashloot.core.LootRoller;
 import dev.blockacademy.slashloot.core.OpenSoundFx;
 import dev.blockacademy.slashloot.mixin.AccessorShulkerBoxBlock;
-import dev.blockacademy.slashloot.store.LootrImport;
+import dev.blockacademy.slashloot.store.LootImport;
 import dev.blockacademy.slashloot.store.PlayerLootEntry;
 import dev.blockacademy.slashloot.store.SlashLootState;
 import net.minecraft.core.BlockPos;
@@ -202,9 +202,9 @@ public final class ContainerInteractionHandler {
         boolean fresh = !store.hasBlockEntry(pos.asLong());
         PlayerLootEntry entry = store.blockEntry(pos.asLong());
         // First touch of this container since SlashLoot took over: carry over who already looted it
-        // under Lootr, and what they left in it, before anyone gets a fresh roll.
+        // under the previous loot mod, and what they left in it, before anyone gets a fresh roll.
         if (fresh && table != null) {
-            LootrImport.claimInto(level, LootrImport.Category.BLOCK, table, seed, entry, slots);
+            LootImport.claimInto(level, LootImport.Category.BLOCK, table, seed, entry, slots);
         }
         LootContainer existing = entry.get(player.getUUID());
         if (existing == null) {

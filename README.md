@@ -10,7 +10,7 @@ Each player who opens a naturally-generated chest, barrel, shulker box, chest mi
 
 Player-placed containers behave exactly as in vanilla.
 
-**Coming from Lootr?** `/slashloot lootr import` carries over who already looted each container and what they left in it. See [Switching from Lootr](#switching-from-lootr).
+**Coming from another per-player loot mod?** `/slashloot import` carries over who already looted each container and what they left in it. See [Switching from another per-player loot mod](#switching-from-another-per-player-loot-mod).
 
 ## Why server-side
 
@@ -132,20 +132,20 @@ All require permission level 2 (op).
 | `/slashloot prune`                      | Drop stored entries whose container no longer exists (loaded chunks)    |
 | `/slashloot stats`                      | Stored entry counts for the current dimension                           |
 | `/slashloot reload`                     | Re-read `config/slashloot.json`                                        |
-| `/slashloot lootr import "<folder>"`    | Dry run: scan a copied Lootr `data/lootr` folder and report what matches |
-| `/slashloot lootr import "<folder>" confirm` | Stage it; each container is carried over the first time it's opened |
-| `/slashloot lootr status`               | Lootr records still waiting to be claimed                               |
-| `/slashloot lootr discard`              | Drop every staged Lootr record                                          |
+| `/slashloot import "<folder>"`          | Dry run: scan a copied per-player loot data folder and report what matches |
+| `/slashloot import "<folder>" confirm`  | Stage it; each container is carried over the first time it's opened     |
+| `/slashloot import status`              | Records still waiting to be claimed                                     |
+| `/slashloot import discard`             | Drop every staged record                                                |
 
-## Switching from Lootr
+## Switching from another per-player loot mod
 
-Lootr replaces vanilla containers with its own blocks, so those blocks have to be turned back into vanilla ones (keeping each container's `LootTable` and `LootTableSeed`) before SlashLoot can serve them; SlashLoot does not do that conversion. What SlashLoot carries over is Lootr's per-player record:
+Some per-player loot mods replace vanilla containers with their own blocks. Those blocks have to be turned back into vanilla ones (keeping each container's `LootTable` and `LootTableSeed`) before SlashLoot can serve them; SlashLoot does not do that conversion. What SlashLoot can carry over is the old mod's per-player record, if it kept one file per container in the 1.21.1 format SlashLoot reads:
 
-1. Copy the old world's `data/lootr` folder anywhere inside the server folder.
-2. `/slashloot lootr import "that/folder"` prints what it found: containers it can match, players with items left behind, players who looted and took everything, and anything it skips.
+1. Copy the old world's per-player loot data folder (under `data/`) anywhere inside the server folder.
+2. `/slashloot import "that/folder"` prints what it found: containers it can match, players with items left behind, players who looted and took everything, and anything it skips. If it reports nothing importable, the format isn't one SlashLoot reads.
 3. Add `confirm` to stage it.
 
-Each Lootr container is matched to its vanilla replacement by loot table and seed, not position, so builds moved to new coordinates or into a new world still match. The first time a matched container is opened, players who looted it under Lootr find exactly what they left, and everyone else gets fresh loot. Chests, trapped chests, barrels, shulker boxes, chest minecarts and pots from Lootr 1.21.x are supported; Lootr's suspicious sand/gravel and item frames are not.
+Each record is matched to its vanilla container by loot table and seed, not position, so builds moved to new coordinates or into a new world still match. The first time a matched container is opened, players who looted it before find exactly what they left, and everyone else gets fresh loot. Chests, trapped chests, barrels, shulker boxes, chest minecarts and pots are supported; suspicious sand/gravel and item frames are not.
 
 ## Known limitations
 

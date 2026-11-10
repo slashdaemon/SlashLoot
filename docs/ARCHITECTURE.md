@@ -17,7 +17,7 @@ If you only want to use the mod, [`README.md`](../README.md) is enough. This doc
 - [7. Configuration & admin commands](#7-configuration--admin-commands)
 - [8. Project layout & per-band variants](#8-project-layout--per-band-variants)
 - [9. The compat axes](#9-the-compat-axes)
-- [10. Comparison vs. Lootr / myLoot / LootrPlugin](#10-comparison-vs-lootr--myloot--lootrplugin)
+- [10. Comparison with block-swap mods and server plugins](#10-comparison-with-block-swap-mods-and-server-plugins)
 - [11. Limitations and rationale](#11-limitations-and-rationale)
 - [12. Future extensions](#12-future-extensions)
 - [13. Adding a new band](#13-adding-a-new-band)
@@ -30,18 +30,17 @@ If you only want to use the mod, [`README.md`](../README.md) is enough. This doc
 
 Vanilla Minecraft generates loot containers (chests in mineshafts, barrels in villages, shulker boxes in ancient cities, chest minecarts on rails, chest boats in shipwrecks…) with a **`LootTable` NBT tag** and a **`LootTableSeed`**. The first time anyone opens one, vanilla rolls the loot table into the container's inventory and clears the tag. Whoever's there first takes everything; everyone else opens an empty chest.
 
-On a multiplayer server, this is a race. The mod [Lootr](https://github.com/LootrMinecraft/Lootr) solves it by giving each player their own copy of the loot — but it does so by **registering custom block variants** (`LootrChestBlock`, `LootrBarrelBlock`, etc.) and swapping the vanilla block-state at the container's position. That swap:
+On a multiplayer server, this is a race. Existing per-player loot mods solve it by giving each player their own copy of the loot — but they do so by **registering custom block variants** (custom chest, barrel and similar blocks) and swapping the vanilla block-state at the container's position. That swap:
 
 - requires the mod on every client (vanilla clients see an unknown block and refuse to connect);
-- breaks scoreboard selectors, datapack predicates, `/data` queries, structure saves, and any mod that scans for `minecraft:chest`;
-- the Lootr maintainers themselves [publicly invite](https://modrinth.com/mod/lootr) plugin developers to write a server-only Fabric alternative — none has existed until now.
+- breaks scoreboard selectors, datapack predicates, `/data` queries, structure saves, and any mod that scans for `minecraft:chest`.
 
 ### The insight
 
-The custom block is **not load-bearing**. Lootr uses it for three things:
+The custom block is **not load-bearing**. Block-swap mods use it for three things:
 
-1. Routing the player's right-click to its own handler (`useWithoutItem` on the custom block).
-2. The gold→blue "looted" visual indicator.
+1. Routing the player's right-click to their own handler (`useWithoutItem` on the custom block).
+2. A "looted" visual indicator (a different texture once opened).
 3. Stashing some per-container state on the block entity.
 
 None of those are required to deliver the actual user value. The real mechanic — "every player rolls the loot table once, sees their own inventory, server persists it" — is **pure server-side bookkeeping**. We can deliver it by intercepting two vanilla code paths:
@@ -53,7 +52,7 @@ Both can be done without ever modifying world block-state. The chest stays a `mi
 
 ### Outcome
 
-A server-side mod that delivers Lootr's headline feature across 10 Minecraft version bands (1.20.1 → 26.1.x) with zero client install requirement and zero vanilla block-state changes.
+A server-side mod that delivers per-player loot across 10 Minecraft version bands (1.20.1 → 26.1.x) with zero client install requirement and zero vanilla block-state changes.
 
 ---
 
@@ -590,20 +589,20 @@ place of `loader/fabric/`, so one port covers both loaders. 1.20.1:
 Sharing it would mean threading an opaque loot-reference abstraction through every band to serve one
 legacy version. Its `Handling` keeps the same contract and the same reason strings as the
 shared one, so porting a change is mechanical.
-## 10. Comparison vs. Lootr / myLoot / LootrPlugin
+## 10. Comparison with block-swap mods and server plugins
 
-| Aspect                              | Lootr                          | myLoot                         | LootrPlugin (Paper)        | **SlashLoot** |
-| ----------------------------------- | ------------------------------ | ------------------------------ | -------------------------- | --------------- |
-| Loader                              | Fabric, NeoForge, Forge        | Fabric                         | Paper plugin               | Fabric, NeoForge, Forge 1.20.1 |
-| Required on clients                 | Yes                            | Yes                            | No                         | **No**          |
-| Touches vanilla block-state         | Yes (`LootrChestBlock` swap)   | Yes (`MyLootChestBlock` swap)  | No                         | **No**          |
-| Vanilla `/data` / selectors work    | No (it's a different block)    | No                             | Yes                        | **Yes**         |
-| Per-player loot                     | ✓                              | ✓                              | ✓                          | ✓               |
-| Block + entity containers           | ✓                              | ✓                              | ✓                          | ✓               |
-| Looted-state visual indicator       | ✓ (custom block texture)       | ✓                              | ✗                          | ✗               |
-| Loot decay / re-roll                | ✓                              | —                              | ?                          | ✗ (by design)   |
-| Decorated pots / suspicious blocks  | ✓                              | ✗                              | ?                          | ✗               |
-| MC versions covered                 | 1.12, 1.16–1.21.x              | 1.18–1.20.x                    | 1.18–26.1.x                | **1.20.1, 1.20.5–26.1.x** |
+| Aspect                              | Block-swap mods                 | Server plugins (Paper)     | **SlashLoot** |
+| ----------------------------------- | ------------------------------- | -------------------------- | --------------- |
+| Required on clients                 | Yes                             | No                         | **No**          |
+| Touches vanilla block-state         | Yes (custom container blocks)   | No                         | **No**          |
+| Vanilla `/data` / selectors work    | No (it's a different block)     | Yes                        | **Yes**         |
+| Per-player loot                     | ✓                               | ✓                          | ✓               |
+| Block + entity containers           | ✓                               | ✓                          | ✓               |
+| Looted-state visual indicator       | ✓ (custom block texture)        | varies                     | ✗               |
+| Loot decay / re-roll                | varies                          | varies                     | ✗ (by design)   |
+| Decorated pots                      | varies                          | varies                     | ✓ (1.20.5+)     |
+| Suspicious sand/gravel              | varies                          | varies                     | ✗               |
+| Runs on Fabric / NeoForge / Forge   | varies                          | No (Paper only)            | **Yes**         |
 
 The one trade-off SlashLoot accepts in exchange for vanilla compatibility:
 
@@ -620,7 +619,7 @@ after all. See section 3.
 ### Hoppers don't pull from instanced containers
 
 The world container is always empty by construction, so a hopper attached to a naturally-generated
-chest extracts nothing. This is inherent to the approach and matches Lootr. It applies **only** to
+chest extracts nothing. This is inherent to the approach, and block-swap mods behave the same way. It applies **only** to
 containers SlashLoot actually instances - a container on a blocklist, or one the mod does not
 handle, is left entirely to vanilla and hoppers work normally on it.
 
@@ -632,7 +631,7 @@ Same cause, same scope.
 
 From 1.20.5 a decorated pot implements `RandomizableContainer`, so the `unpackLootTable` mixin already
 keeps its world copy unrolled. What it lacks is a menu: vanilla hands pot loot out by breaking the
-pot. `handler/PotHandler` replaces that with Lootr's model. A survival break attempt (the cancellable
+pot. `handler/PotHandler` replaces that with the model players expect from per-player loot mods. A survival break attempt (the cancellable
 `onPlayerBreakAttempt` hook), an empty-hand right-click, or the player's own projectile
 (`MixinDecoratedPotBlock#onProjectileHit`) drops that player's roll at the pot, shows the break
 particles to that player only (level event 2001), and leaves the pot standing. A second hit only
@@ -646,16 +645,17 @@ unchanged.
 
 ### Suspicious sand/gravel and item frames
 
-Not covered. Brushing has no container menu and would need its own hooks. Lootr instances both.
+Not covered. Brushing has no container menu and would need its own hooks.
 
-### Migrating from Lootr
+### Migrating from another per-player loot mod
 
-`store/LootrImport` reads Lootr 1.21.x's per-container files and matches each to a container by loot
-table + seed (a random 64-bit value, so it survives moved builds and can't collide with a new world's
-containers). Records are claimed lazily on the first interaction with a container SlashLoot has no
-entry for, so no chunk is loaded and `Handling` stays side-effect free. Items go through vanilla's
-DataFixer before `ItemStack.CODEC`, so a 1.21.1 dump imports into a newer world. Turning Lootr's
-custom blocks back into vanilla ones is not SlashLoot's job and has to keep `LootTable`/`LootTableSeed`.
+`store/LootImport` reads a 1.21.1 per-container file format (one gzipped SavedData per container)
+and matches each record to a container by loot table + seed (a random 64-bit value, so it survives
+moved builds and can't collide with a new world's containers). Records are claimed lazily on the
+first interaction with a container SlashLoot has no entry for, so no chunk is loaded and `Handling`
+stays side-effect free. Items go through vanilla's DataFixer before `ItemStack.CODEC`, so a 1.21.1
+dump imports into a newer world. Turning the old mod's custom blocks back into vanilla ones is not
+SlashLoot's job and has to keep `LootTable`/`LootTableSeed`.
 
 ### No looted-state visual
 
@@ -735,5 +735,3 @@ checked without a client.
 - [`README.md`](../README.md) — user-facing install and usage.
 - [`CHANGELOG.md`](../CHANGELOG.md) — release history.
 - [`CLAUDE.md`](../CLAUDE.md) — project guidance for future Claude sessions, including the LocalServer verification recipe.
-- [Lootr source](https://github.com/LootrMinecraft/Lootr) — the prior art whose hook strategy informed this design.
-- [myLoot source](https://github.com/spoorn/myLoot) — Fabric-specific reference for the loot-table-bearing container conversion approach.
