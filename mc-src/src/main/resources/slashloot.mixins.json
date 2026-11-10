@@ -5,6 +5,7 @@
   "mixins": [
     "MixinRandomizableContainer",
     "MixinContainerEntity",
+    "MixinChestBoatInventory",
     "MixinEntityRemoved",
     "MixinDecoratedPotBlock",
     "AccessorShulkerBoxBlock"

@@ -12,6 +12,7 @@
     "MixinRandomizableContainer",
     "MixinMinecartUnpack",
     "MixinChestBoatUnpack",
+    "MixinChestBoatInventory",
     "MixinEntityRemoved"
   ],
   "client": [],

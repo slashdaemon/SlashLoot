@@ -70,8 +70,8 @@ BAND_GAME_VERSIONS = {
     ("26.3",    "fabric"):   ["26.3"],
 
     ("1.20.6",  "neoforge"): ["1.20.6"],
-    ("1.21.1",  "neoforge"): ["1.21", "1.21.1"],
-    ("1.21.3",  "neoforge"): ["1.21.2", "1.21.3"],
+    ("1.21.1",  "neoforge"): ["1.21.1"],
+    ("1.21.3",  "neoforge"): ["1.21.3"],
     ("1.21.4",  "neoforge"): ["1.21.4"],
     ("1.21.5",  "neoforge"): ["1.21.5"],
     ("1.21.8",  "neoforge"): ["1.21.6", "1.21.7", "1.21.8"],
@@ -92,9 +92,7 @@ def game_versions_for(band: str, loader: str) -> list[str]:
 
 # (band, loader) pairs built on a beta loader. These always publish as `beta`, whatever --type says,
 # so a stable release never advertises a JAR whose loader can still break underneath it.
-BETA_ONLY_BANDS = {
-    ("26.3", "neoforge"),  # NeoForge 26.3 has no stable build yet (26.3.0.x-beta)
-}
+BETA_ONLY_BANDS: set[tuple[str, str]] = set()
 
 
 def release_type_for(band: str, loader: str, requested: str) -> str:

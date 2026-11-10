@@ -21,9 +21,9 @@ public enum ContainerKind {
     BARREL(27, "container.barrel", Style.CHEST),
     SHULKER(27, "container.shulkerBox", Style.SHULKER),
     DOUBLE_CHEST(54, "container.chestDouble", Style.CHEST),
-    MINECART_CHEST(27, "container.minecart", Style.CHEST),
-    MINECART_HOPPER(5, "container.hopper", Style.HOPPER),
-    CHEST_BOAT(27, "container.chestBoat", Style.CHEST),
+    MINECART_CHEST(27, "entity.minecraft.chest_minecart", Style.CHEST),
+    MINECART_HOPPER(5, "entity.minecraft.hopper_minecart", Style.HOPPER),
+    CHEST_BOAT(27, "container.chest", Style.CHEST),
     /**
      * A decorated pot holding a loot table (trial-chamber corridors, 1.20.5+). It has no menu: the
      * player's own roll is dropped at the pot when they hit it, and the pot stays for everyone else.
@@ -59,6 +59,14 @@ public enum ContainerKind {
 
     /** @param title the real container's display name (custom name if renamed, default name otherwise) */
     public MenuProvider menuProvider(Container container, Component title) {
+        return menuProvider(container, null, title);
+    }
+
+    /**
+     * @param worldView the real world container behind {@code container}, or null if there is none
+     *     to report. See {@link LootChestMenu} for why chest-style menus need it.
+     */
+    public MenuProvider menuProvider(Container container, Container worldView, Component title) {
         if (!opensMenu()) throw new IllegalStateException(name() + " has no menu");
         int slots = container.getContainerSize();
 
@@ -87,6 +95,8 @@ public enum ContainerKind {
             default -> MenuType.GENERIC_9x3;
         };
         int finalRows = rows;
-        return new SimpleMenuProvider((id, inv, p) -> new ChestMenu(type, id, inv, container, finalRows), title);
+        return new SimpleMenuProvider((id, inv, p) -> worldView != null
+                ? new LootChestMenu(type, id, inv, container, finalRows, worldView)
+                : new ChestMenu(type, id, inv, container, finalRows), title);
     }
 }

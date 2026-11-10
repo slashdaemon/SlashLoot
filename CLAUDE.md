@@ -69,6 +69,7 @@ SlashLoot/
 │       ├── loader/LoaderBridge.java    the ONLY Fabric/NeoForge seam
 │       ├── core/Handling.java          THE decision function (read this first)
 │       ├── core/LootContainerBase.java dirty tracking + open/close delegation
+│       ├── core/LootChestMenu.java     reports the world container to vanilla's opener recheck
 │       ├── core/{ContainerKind,LootRoller,OpenSoundFx,DebugLog}.java
 │       ├── handler/{ContainerInteraction,EntityInteraction,Pot,Cleanup}Handler.java
 │       ├── command/SlashLootCommand.java
@@ -152,11 +153,13 @@ the same contract and the same reason strings, so the port is mechanical.
 **NeoForge coverage differs from Fabric, for reasons outside our control:**
 
 - NeoForge has no 1.20.5 line, so its own bands start at 1.20.6; NeoForge 1.20.1 runs the Forge jar.
+- MC 1.21 (NeoForge 21.0) and MC 1.21.2 (NeoForge 21.2) are not covered: `neoforge_range` on the
+  neighbouring JARs refuses to load there, confirmed by booting them.
 - NeoForge 21.6, 21.7 and 21.9 have **no stable builds at all** — every published `21.6.x` /
   `21.9.x` is a `-beta` (checked against `maven.neoforged.net`). MC 1.21.6–1.21.8 ride the 21.8
   build, and 1.21.9–1.21.10 ride the 21.10 build.
-- **NeoForge 26.3 is beta-only** (`26.3.0.x-beta`). The publish scripts force that JAR to `beta`
-  through `BETA_ONLY_BANDS`; drop the entry and re-pin once a stable 26.3 build lands.
+- `BETA_ONLY_BANDS` in the publish scripts forces a JAR built on a beta-only loader to `beta`. It is
+  empty now that NeoForge 26.3 has stable builds; re-add an entry when a new band starts on a beta.
 - **1.21.5 is its own band on both loaders.** `SavedData.Factory` was removed at 1.21.5, not 1.21.6
   — the 1.21.4 JAR cannot run there, though 0.1.x advertised it for exactly that.
 
@@ -168,9 +171,9 @@ the same contract and the same reason strings, so the port is mechanical.
 | 1.20.6-neoforge | N | 1.20.6 | location | legacy | nbt | — | player |
 | 1.21-fabric | F | 1.21 | location | legacy | nbt | — | player |
 | 1.21.1-fabric | F | 1.21.1 | location | legacy | nbt | — | player |
-| 1.21.1-neoforge | N | 1.21–1.21.1 | location | legacy | nbt | — | player |
+| 1.21.1-neoforge | N | 1.21.1 | location | legacy | nbt | — | player |
 | 1.21.2-fabric | F | 1.21.2–1.21.3 | location | container | nbt | — | player |
-| 1.21.3-neoforge | N | 1.21.2–1.21.3 | location | container | nbt | — | player |
+| 1.21.3-neoforge | N | 1.21.3 | location | container | nbt | — | player |
 | 1.21.4-fabric / -neoforge | F+N | 1.21.4 | location | container | nbt | — | player |
 | 1.21.5-fabric / -neoforge | F+N | 1.21.5 | location | container | codec | string | player |
 | 1.21.6-fabric | F | 1.21.6–1.21.8 | location | container | codec | string | player |
@@ -208,9 +211,32 @@ widely-circulated matrices claim stable NeoForge exists for 21.6 / 21.9; it does
 
 ## Verification
 
-**Build gate:** `./gradlew buildAll` must collect 25 JARs into `build/release/`.
+**Release gates, every one, before every publish.** Compiling proves little: 0.3.0 passed the build
+gate with a 1.20.1 JAR that crashed at boot, chest boats that opened empty, and NeoForge listings
+for versions the JARs refused to load on.
 
-**Smoke gate:** `python scripts/smoke.py --all --migration` must pass every band (about an hour).
+1. `./gradlew buildAll` collects 25 `<version>` JARs into `build/release/` (older versions stay in
+   the folder too; the publish scripts filter by version).
+2. `python scripts/boot-matrix.py` boots every advertised (JAR, MC) pair, read from
+   `BAND_GAME_VERSIONS`, and runs the headless sweep below on each. No client, no foreground needed.
+   Adding a version to that table adds it to the gate.
+3. `python scripts/client-matrix.py` drives every JAR with a plain vanilla Prism client: opener
+   cycles, vehicles, and slots across a restart. It needs the Minecraft window in the foreground, so
+   the PC cannot be used meanwhile. `--cleanup` removes its instances.
+
+4. `python scripts/smoke.py --all --migration` and `--prod forge --prod neoforge-1.20.1` cover what
+   the matrices don't: dev-run fixtures, the pre-rename `slashlootr` file migration, and the shipped
+   Forge jar. `--integrated` covers Fabric in singleplayer.
+
+Tested on the newest NeoForge for each MC version, not the build pinned in `gradle.properties`, and
+the 1.21.6-1.21.9 NeoForge lines are betas. `--two-players` covers one chest boat shared by two
+clients. A version Prism has not cached gets one online launch first, signed in with Prism's default
+account, because `--offline` never downloads.
+
+`--migrate 1.21.4:<old> 1.21.5:<new>` on `client-matrix.py` checks that loot survives an upgrade. Keep
+old JARs in `<WORK>/old`. The save format is `{slot, item}` on every band: never let the stores drift.
+
+**Smoke gate detail:** `python scripts/smoke.py --all --migration` must pass every band (about an hour).
 It boots each band's `runServer` in a throwaway `smoke-world`, fails on any Mixin/loader/SlashLoot
 error, runs the hopper fixtures below over RCON, then re-boots with pre-rename `slashlootr` files and
 checks they migrate. Use `--band <name>` for one band. It runs on 25594/25595 (`--port` to move);
@@ -259,12 +285,16 @@ install — `./gradlew :versions:1.21.1-neoforge:runServer`, with `run/eula.txt`
 1. `/locate structure minecraft:mineshaft` → dig to a chest → `/data get block ~ ~ ~ LootTable` shows a table id
 2. Player A opens it → notes items; Player B opens → **different items**; A re-opens → same as before
 3. Restart the server → both players' loot persists; the `LootTable` tag is still on the block
-4. Lid animates on open, and the open sound plays **once**
+4. Hold the menu open for a second, close it, and repeat at least three times: every open plays the
+   open sound **once**, the lid stays open until the menu closes, and the close sound plays once.
+   A quick open-and-close beats vanilla's 5-tick recheck and hides opener-count bugs. With subtitles
+   on, or a barrel's `open` state and a trapped chest's lamp polled over RCON, this needs no ears.
 5. Redstone lamp beside a natural **trapped** chest powers while open
 6. Break the chest → `/slashloot stats` block count drops by one
 7. Place a player-crafted chest → no interception
 
 Repeat for: trapped chest, barrel, shulker box, chest minecart, double chest (both lids), chest boat.
+A chest boat boards on a plain click, and opens on a sneak-click or the inventory key while riding.
 
 **Pots** (1.20.5+, `/place structure minecraft:trial_chambers` or `setblock` a pot with
 `LootTable:"minecraft:pots/trial_chambers/corridor"`): A hits it → A's items drop, break particles for
@@ -294,6 +324,11 @@ from `Handling`/`unpackLootTable`. Converting the old mod's blocks back to vanil
 - **Suspicious sand/gravel and item frames are not instanced**; the import dry run counts them as unsupported.
 - **Comparator output reads 0** from those same containers, for the same reason.
 - **No decay / re-roll** — per-player loot is permanent by design.
+- **Upgrading a world from 1.20.1 to 1.20.5+ flattens personal copies.** Measured: slots and items
+  survive, stack counts fall to 1. The rows are 1.20.1 item NBT (`Count`, `tag`), which newer
+  `ItemStack` parsing ignores, and the stores run no data fixer. Item enchantments in `tag` are
+  expected to go the same way, unmeasured. Fixing it needs a `DataFixer` call in both stores and a
+  seam for the data-version accessor.
 - **Prune skips unloaded chunks.** Entries for containers destroyed in chunks that never load again are not reclaimed; they are cheap and get dropped on the next pass that finds the chunk loaded.
 
 ## Repository

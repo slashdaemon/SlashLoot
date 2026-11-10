@@ -28,7 +28,7 @@ If you only want to use the mod, [`README.md`](../README.md) is enough. This doc
 
 ### The problem
 
-Vanilla Minecraft generates loot containers (chests in mineshafts, barrels in villages, shulker boxes in ancient cities, chest minecarts on rails, chest boats in shipwrecks…) with a **`LootTable` NBT tag** and a **`LootTableSeed`**. The first time anyone opens one, vanilla rolls the loot table into the container's inventory and clears the tag. Whoever's there first takes everything; everyone else opens an empty chest.
+Vanilla Minecraft generates loot containers (chests in mineshafts, barrels in villages, shulker boxes in ancient cities, chest minecarts on rails…) with a **`LootTable` NBT tag** and a **`LootTableSeed`**. The first time anyone opens one, vanilla rolls the loot table into the container's inventory and clears the tag. Whoever's there first takes everything; everyone else opens an empty chest.
 
 On a multiplayer server, this is a race. Existing per-player loot mods solve it by giving each player their own copy of the loot — but they do so by **registering custom block variants** (custom chest, barrel and similar blocks) and swapping the vanilla block-state at the container's position. That swap:
 
@@ -100,6 +100,10 @@ If we **cancel** `unpackLootTable` server-side:
 
 The same lazy-roll pattern exists for chest minecarts, hopper minecarts, and chest boats. All of them implement `ContainerEntity` (interface), on every band including 1.20.1, and roll through its default method `ContainerEntity#unpackChestVehicleLootTable(Player)`. On 1.20.1 `ChestBoat#unpackLootTable` only delegates to it, and `AbstractMinecartContainer` has no `unpackLootTable` of its own, so a hook on either class misses minecarts (0.2.0–0.3.3 shipped exactly that, and the 1.20.1 JAR failed at startup). What does work on a class is merging an *override* of the interface method into it, which is how the Forge 1.20.1 band hooks them (see Band A below).
 
+Vanilla never generates chest boats with loot, so those only come from commands, datapacks and other mods, but they still have to work.
+
+A chest boat has one click path vanilla does not share with minecarts: a plain click boards it, and only a sneak-click (or a click when the seat is taken) opens it. A rider opens it with the inventory key, which arrives through `openCustomInventoryScreen` with no click at all, so `MixinChestBoatInventory` covers that path. Its target class differs by band, so it lives in `compat/vehicle-*`.
+
 ---
 
 ## 3. The intercept layer
@@ -133,6 +137,14 @@ The personal container is a `LootContainerBase` subclass that forwards `startOpe
 real world container. Vanilla's `ContainerOpenersCounter` therefore runs normally: chest and shulker
 lids animate, barrels flip their `open` blockstate, and trapped chests emit redstone. Vanilla's
 `CompoundContainer` forwards both calls to each half, so double chests need no special handling.
+
+Forwarding alone is not enough. The counter rechecks itself 5 ticks after an open, counting players
+whose open `ChestMenu#getContainer()` is the block entity, and it fires open and close effects only
+when the count crosses exactly zero. So chest-style menus are a `LootChestMenu`, whose slots use the
+personal container but whose `getContainer()` reports the world container (a `CompoundContainer` of
+both block entities for a double chest). `LootContainerBase#stillValid` forwards too, so a player who
+leaves range is closed out rather than silently dropped from the count. Before 0.5.3 the recheck
+zeroed the count with the GUI open, the real close took it to -1, and every later open was silent.
 
 With delegation on (the default) vanilla plays the open sound itself, so the mod's manual
 `OpenSoundFx` is suppressed — otherwise it would play twice.

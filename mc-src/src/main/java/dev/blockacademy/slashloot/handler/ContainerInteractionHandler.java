@@ -93,7 +93,7 @@ public final class ContainerInteractionHandler {
         Built built = buildPerPlayerContainer(level, pos, be, pair, player, decision);
         if (built == null) return InteractionResult.PASS;
 
-        player.openMenu(decision.kind().menuProvider(built.container(), built.title()));
+        player.openMenu(decision.kind().menuProvider(built.container(), built.world(), built.title()));
         awardVanillaOpenEffects(level, player, decision.kind());
 
         // With delegation on, vanilla's ContainerOpenersCounter already played the open sound.
@@ -119,7 +119,8 @@ public final class ContainerInteractionHandler {
         PiglinAnger.anger(level, player);
     }
 
-    private record Built(Container container, Component title) {}
+    /** What a menu shows, the world container it answers for (null with delegation off), and its title. */
+    private record Built(Container container, Container world, Component title) {}
 
     /**
      * Single containers return one personal container. Double chests return a vanilla
@@ -142,14 +143,23 @@ public final class ContainerInteractionHandler {
             // rather than a broken menu.
             int slots = decision.kind() == ContainerKind.DOUBLE_CHEST ? Math.max(1, decision.slots() / 2) : decision.slots();
             LootContainer c = getOrRoll(store, level, pos, be, player, slots, delegate);
-            return new Built(c, titleOf(be, decision.kind()));
+            return new Built(c, worldView(be, delegate), titleOf(be, decision.kind()));
         }
 
         LootContainer firstC = getOrRoll(store, level, pair.first(), pair.firstBe(), player,
                 pair.firstBe() instanceof Container c ? c.getContainerSize() : 27, delegate);
         LootContainer secondC = getOrRoll(store, level, pair.second(), pair.secondBe(), player,
                 pair.secondBe() instanceof Container c ? c.getContainerSize() : 27, delegate);
-        return new Built(new CompoundContainer(firstC, secondC), doubleChestTitle(pair));
+        Container firstWorld = worldView(pair.firstBe(), delegate);
+        Container secondWorld = worldView(pair.secondBe(), delegate);
+        return new Built(
+                new CompoundContainer(firstC, secondC),
+                firstWorld != null && secondWorld != null ? new CompoundContainer(firstWorld, secondWorld) : null,
+                doubleChestTitle(pair));
+    }
+
+    private static Container worldView(BlockEntity be, boolean delegate) {
+        return delegate && be instanceof Container c ? c : null;
     }
 
     /** {@code BaseContainerBlockEntity#canOpen} is the Lock check; it also shows the "locked" message. */

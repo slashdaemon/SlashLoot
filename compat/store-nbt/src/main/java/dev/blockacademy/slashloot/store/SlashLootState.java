@@ -8,6 +8,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.HashMap;
@@ -20,7 +21,9 @@ import java.util.UUID;
  *
  * <p>CompoundTag flavour, for MC 1.20.5 - 1.21.4. MC 1.21.5 removed {@code SavedData.Factory} in
  * favour of {@code SavedDataType} + {@code Codec}; that rewrite lives in {@code compat/store-codec}.
- * The on-disk shape is identical in both, and unchanged from 0.1.x, so saves migrate untouched.
+ * Both write each item as {@code {slot, item}}, so a world keeps its loot across that upgrade. Rows
+ * written before 0.3.1 are bare item compounds with no slot: they still load, in order, because
+ * those saves never recorded positions.
  *
  * <p>Every band gets this exact public API — {@code mc-src} is written against it and nothing else.
  */
@@ -152,10 +155,37 @@ public class SlashLootState extends SavedData {
             CompoundTag row = new CompoundTag();
             row.putUUID("uuid", e.getKey());
             row.putInt("size", e.getValue().getContainerSize());
-            row.put("items", e.getValue().createTag(registries));
+            row.put("items", saveItems(e.getValue(), registries));
             list.add(row);
         }
         return list;
+    }
+
+    private static ListTag saveItems(LootContainer container, HolderLookup.Provider registries) {
+        ListTag items = new ListTag();
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty()) continue;
+            CompoundTag row = new CompoundTag();
+            row.putInt("slot", slot);
+            row.put("item", stack.save(registries));
+            items.add(row);
+        }
+        return items;
+    }
+
+    private static void loadItems(LootContainer container, ListTag items, HolderLookup.Provider registries) {
+        for (int i = 0; i < items.size(); i++) {
+            CompoundTag row = items.getCompound(i);
+            if (!row.contains("item")) {
+                ItemStack.parse(registries, row).ifPresent(container::addItem);
+                continue;
+            }
+            int slot = row.getInt("slot");
+            if (slot >= 0 && slot < container.getContainerSize()) {
+                ItemStack.parse(registries, row.getCompound("item")).ifPresent(s -> container.setItem(slot, s));
+            }
+        }
     }
 
     private static void loadPlayers(PlayerLootEntry target, ListTag list, HolderLookup.Provider registries) {
@@ -164,7 +194,7 @@ public class SlashLootState extends SavedData {
             UUID uuid = row.getUUID("uuid");
             int size = row.getInt("size");
             LootContainer container = target.newContainer(size > 0 ? size : 27);
-            container.fromTag(row.getList("items", Tag.TAG_COMPOUND), registries);
+            loadItems(container, row.getList("items", Tag.TAG_COMPOUND), registries);
             target.put(uuid, container);
         }
     }

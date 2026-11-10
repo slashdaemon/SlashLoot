@@ -223,6 +223,12 @@ public final class LootImport {
             }
             String table = data.get("table").asString("");
             long seed = data.get("seed").asLong(0L);
+            if (type.equals("pot") && table.contains(":archaeology/")) {
+                // Suspicious sand/gravel saved under the pot type. SlashLoot doesn't instance
+                // brushable blocks, and no real pot carries an archaeology table, so it could never match.
+                report.unsupported.merge("suspicious_block", 1, Integer::sum);
+                continue;
+            }
             if (table.isEmpty() || seed == 0L) {
                 report.noTableOrSeed++;
                 continue;

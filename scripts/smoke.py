@@ -281,8 +281,8 @@ IMPORT_FIXTURE = "import-fixture"
 
 
 def seed_import_fixture(server):
-    """Five import files: an importable chest, pot and minecart, an unsupported type (suspicious sand),
-    and a barrel with no loot table. Expect 3 importable."""
+    """Six import files: an importable chest, pot and minecart, an unsupported type (suspicious sand),
+    suspicious gravel saved under the pot type, and a barrel with no loot table. Expect 3 importable."""
     world = server.run / WORLD
     level = _nbt_read(gzip.decompress((world / "level.dat").read_bytes()))
     dv = level["Data"]["DataVersion"]
@@ -293,6 +293,7 @@ def seed_import_fixture(server):
         "3/3c/cart.dat": _import_file(dv, "minecart", TABLE, 77, inventories=[b], openers=[b]),
         "4/4d/sand.dat": _import_file(dv, "suspicious_sand", "minecraft:archaeology/desert_well", 5),
         "5/5e/notable.dat": _import_file(dv, "barrel"),
+        "6/6f/brush.dat": _import_file(dv, "pot", "minecraft:archaeology/trail_ruins_common", 6),
     }
     root = server.run / IMPORT_FIXTURE
     shutil.rmtree(root, ignore_errors=True)
@@ -307,8 +308,8 @@ def check_loot_import(server, rcon):
     seed_import_fixture(server)
     results = []
     dry = rcon.cmd(f'slashloot import "{IMPORT_FIXTURE}"')
-    want = ["files=5", "importable=3", "chest=1", "minecart=1", "pot=1",
-            "players with leftovers=2", "looted, nothing left=2", "no table/seed=1", "suspicious_sand=1"]
+    want = ["files=6", "importable=3", "chest=1", "minecart=1", "pot=1",
+            "players with leftovers=2", "looted, nothing left=2", "no table/seed=1", "suspicious_block=1", "suspicious_sand=1"]
     missing = [w for w in want if w not in dry]
     results.append(("import: dry run", not missing, "" if not missing else f"missing {missing} in: {dry[:300]}"))
     index = server.run / WORLD / "slashloot-import.json"

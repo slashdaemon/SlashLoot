@@ -97,7 +97,7 @@ tasks.register("buildAll") {
     forgeBands.each { dependsOn ":versions:${it}:build" }
     dependsOn "build26"                  // Band G: MC 26.1.x (quarantined, both loaders)
     dependsOn "build262"                 // Band J: MC 26.2.x (quarantined, both loaders)
-    dependsOn "build263"                 // Band K: MC 26.3.x (quarantined, both loaders; NeoForge beta)
+    dependsOn "build263"                 // Band K: MC 26.3.x (quarantined, both loaders)
 
     doLast {
         def releaseDir = layout.buildDirectory.dir("release").get().asFile

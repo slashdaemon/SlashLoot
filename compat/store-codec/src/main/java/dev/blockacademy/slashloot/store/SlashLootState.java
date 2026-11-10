@@ -1,5 +1,6 @@
 package dev.blockacademy.slashloot.store;
 
+import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.blockacademy.slashloot.SlashLootCore;
@@ -28,7 +29,7 @@ import java.util.UUID;
  * {@code SavedDataType} + {@code Codec}. The {@code SavedDataType} key type then changed again at
  * MC 26.1 (String to Identifier), which is the one line held in {@code compat/savedtype-*}.
  *
- * <p>Same on-disk shape as the CompoundTag flavour and as 0.1.x, so saves migrate untouched.
+ * <p>Same on-disk shape as the CompoundTag flavour, so a world keeps its loot across MC upgrades.
  *
  * <p>Every band gets this exact public API — {@code mc-src} is written against it and nothing else.
  */
@@ -39,13 +40,20 @@ public class SlashLootState extends SavedData {
                 Codec.INT.fieldOf("slot").forGetter(SlotItem::slot),
                 ItemStack.CODEC.fieldOf("item").forGetter(SlotItem::item)
         ).apply(i, SlotItem::new));
+
+        /**
+         * Also reads the bare item rows the CompoundTag store wrote before 0.3.1, so a world upgraded
+         * past MC 1.21.4 keeps its loot. They carry no slot, so they load in order.
+         */
+        static final Codec<SlotItem> LENIENT = Codec.either(CODEC, ItemStack.CODEC).xmap(
+                row -> row.map(s -> s, stack -> new SlotItem(-1, stack)), Either::left);
     }
 
     record PlayerSlots(UUID player, int size, List<SlotItem> items) {
         static final Codec<PlayerSlots> CODEC = RecordCodecBuilder.create(i -> i.group(
                 UUIDUtil.CODEC.fieldOf("uuid").forGetter(PlayerSlots::player),
                 Codec.INT.fieldOf("size").forGetter(PlayerSlots::size),
-                SlotItem.CODEC.listOf().fieldOf("items").forGetter(PlayerSlots::items)
+                SlotItem.LENIENT.listOf().fieldOf("items").forGetter(PlayerSlots::items)
         ).apply(i, PlayerSlots::new));
     }
 
@@ -185,7 +193,9 @@ public class SlashLootState extends SavedData {
     private static LootContainer inflate(PlayerLootEntry owner, PlayerSlots ps) {
         LootContainer c = owner.newContainer(Math.max(1, ps.size()));
         for (SlotItem item : ps.items()) {
-            if (item.slot() >= 0 && item.slot() < c.getContainerSize()) {
+            if (item.slot() < 0) {
+                c.addItem(item.item());
+            } else if (item.slot() < c.getContainerSize()) {
                 c.setItem(item.slot(), item.item());
             }
         }
