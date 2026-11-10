@@ -20,6 +20,7 @@ All notable changes to SlashLoot. Dates are YYYY-MM-DD.
   a new world still match. The first time a matched container is opened, players who looted it
   before find exactly what they left in it, and everyone else gets fresh loot. Covers chests,
   trapped chests, barrels, shulker boxes, chest minecarts and pots, from 1.21.1 data.
+  Suspicious sand and gravel and item frames aren't carried over; the dry run counts them separately.
   `/slashloot import status` shows what is still waiting; `/slashloot import discard` drops it.
 - Minecraft 1.20.1 files (Fabric and Forge) are unchanged: 1.20.1 pots never hold loot.
 
