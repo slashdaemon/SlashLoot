@@ -201,6 +201,7 @@ enforce-secure-profile=false
 white-list=false
 level-name={level}
 level-type=minecraft\\:flat
+generate-structures=false
 difficulty=peaceful
 spawn-monsters=false
 gamemode=creative
