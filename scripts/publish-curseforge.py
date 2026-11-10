@@ -137,10 +137,9 @@ def java_version_for(band: str) -> str:
 
 
 # CurseForge requires at least one tag from its "Environment" version group, or the upload is
-# rejected with errorCode 1021. SlashLoot runs wherever the server runs: on a dedicated server
-# (clients connect unmodified) and on the integrated server of a singleplayer/LAN world, which
-# lives in the client install. So every file is tagged both Client and Server.
-CURSEFORGE_ENVIRONMENTS = ["Client", "Server"]
+# rejected with errorCode 1021. SlashLoot is a server-side mod (clients connect unmodified), so
+# every file is tagged Server only. Don't add Client: that tag was wrongly set on 0.5.1/0.5.2.
+CURSEFORGE_ENVIRONMENTS = ["Server"]
 
 
 # CurseForge "Modloader" tags per JAR loader. The Forge 1.20.1 jar is built against Forge 47.1.3,
