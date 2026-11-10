@@ -15,6 +15,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.DecoratedPotBlockEntity;
 import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
@@ -59,6 +60,7 @@ public final class Handling {
     private static final Decision DIMENSION_BLOCKED = vanilla("dimension_blocklisted");
     private static final Decision TABLE_BLOCKED = vanilla("table_blocklisted");
     private static final Decision DISABLED = vanilla("disabled");
+    private static final Decision POTS_DISABLED = vanilla("pots_disabled");
 
     private Handling() {}
 
@@ -85,6 +87,13 @@ public final class Handling {
         if (!config.enabled) return DISABLED;
         if (config.isDimensionBlocked(Ids.dimension(level))) return DIMENSION_BLOCKED;
         if (config.isLootTableBlocked(Ids.of(table))) return TABLE_BLOCKED;
+
+        // Pots are decided here, before the unknown-container fallback below: that fallback would
+        // otherwise turn a pot into a 1-slot "chest" with a broken menu and a roll nobody can reach.
+        if (be instanceof DecoratedPotBlockEntity) {
+            if (!config.instancePots) return POTS_DISABLED;
+            return new Decision(Verdict.INSTANCE, "instanced", ContainerKind.POT, 1);
+        }
 
         BlockState state = level.getBlockState(pos);
         ContainerKind kind = classifyBlock(be, state);

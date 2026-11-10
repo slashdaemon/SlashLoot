@@ -1,15 +1,18 @@
 # CLAUDE.md — SlashLoot
 
-Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required** on a dedicated server; for singleplayer/LAN it goes in the player's own `mods/` (the integrated server). Vanilla-compatible alternative to [Lootr](https://github.com/LootrMinecraft/Lootr).
+Server-side per-player loot mod. **Fabric + NeoForge, plus Forge on 1.20.1.** **No custom blocks.** **No client install required** on a dedicated server; for singleplayer/LAN it goes in the player's own `mods/` (the integrated server). A vanilla-compatible per-player loot mod.
+
+**Never name other mods (in particular other per-player loot mods) in anything in this repo: code, comments, docs, changelog, release notes, commands, file names.** Owner rule. Say "another per-player loot mod" or "block-swap mods".
 
 ## Why this exists
 
-Lootr/myLoot achieve per-player chests by swapping vanilla blocks for custom `LootrChestBlock`/`MyLootChestBlock` variants. That breaks vanilla compatibility and requires clients to install the mod. SlashLoot does the same job by intercepting two vanilla code paths server-side — the chest stays a `minecraft:chest` and vanilla clients connect normally.
+Block-swap per-player loot mods achieve per-player chests by swapping vanilla blocks for custom chest-block variants. That breaks vanilla compatibility and requires clients to install the mod. SlashLoot does the same job by intercepting two vanilla code paths server-side — the chest stays a `minecraft:chest` and vanilla clients connect normally.
 
 ## How it works
 
 1. **Mixin** `RandomizableContainer#unpackLootTable` (and `ContainerEntity#unpackChestVehicleLootTable`) → cancel the vanilla loot roll. The chest's `LootTable`/`LootTableSeed` NBT tags persist forever; the world container stays "unrolled."
 2. **Loader event on player right-click** → look up or roll a personal container from a per-dimension `SavedData`, then `openMenu(...)` a vanilla `ChestMenu` backed by it.
+3. **Decorated pots (1.20.5+)** have no menu: `handler/PotHandler` drops the player's own roll at the pot on a break attempt (cancelled in survival), an empty-hand right-click, or their projectile (`MixinDecoratedPotBlock`). The pot never breaks in survival. A pot copy is a 1-slot container in the same `blocks` map; present-but-empty means "already claimed", so the save format is unchanged.
 
 Per-player seed: `XOR(containerSeed, player.uuid.msb, rotL(player.uuid.lsb, 17))` — deterministic, so re-opening shows what you left.
 
@@ -68,11 +71,11 @@ SlashLoot/
 │       ├── core/LootContainerBase.java dirty tracking + open/close delegation
 │       ├── core/LootChestMenu.java     reports the world container to vanilla's opener recheck
 │       ├── core/{ContainerKind,LootRoller,OpenSoundFx,DebugLog}.java
-│       ├── handler/{ContainerInteraction,EntityInteraction,Cleanup}Handler.java
+│       ├── handler/{ContainerInteraction,EntityInteraction,Pot,Cleanup}Handler.java
 │       ├── command/SlashLootCommand.java
 │       ├── config/SlashLootConfig.java
-│       ├── store/PlayerLootEntry.java
-│       └── mixin/{MixinRandomizableContainer,MixinContainerEntity,MixinEntityRemoved}.java
+│       ├── store/{PlayerLootEntry,LootImport}.java
+│       └── mixin/{MixinRandomizableContainer,MixinContainerEntity,MixinEntityRemoved,MixinDecoratedPotBlock}.java
 ├── compat/                     per-generation seams, a few dozen lines each
 │   ├── ids-location/           ≤1.21.10  ResourceKey#location(), hasPermission(2)
 │   ├── ids-identifier/         ≥1.21.11  ResourceKey#identifier(), Commands.hasPermission
@@ -99,9 +102,11 @@ SlashLoot/
     └── 26.3/                   Band K — same shape, forked from 26.2 (Gradle 9.6, Loom 1.17)
 ```
 
-`mc-src/` names no loader type. The single seam is `loader/LoaderBridge` — five hooks (use-block,
-use-entity, register-commands, block-break, server-tick) plus the config directory — which each
-loader entrypoint implements and hands to `SlashLootCore.boot(...)`.
+`mc-src/` names no loader type. The single seam is `loader/LoaderBridge` — six hooks (use-block,
+use-entity, register-commands, break-attempt, block-break, server-tick) plus the config directory —
+which each loader entrypoint implements and hands to `SlashLootCore.boot(...)`. Break-attempt is the
+cancellable one (Fabric `PlayerBlockBreakEvents.BEFORE`, NeoForge's break event at NORMAL priority);
+pots use it. Band A's own `LoaderBridge` copy has five hooks: 1.20.1 pots hold no loot.
 
 A band's whole build file is its variant list:
 
@@ -263,7 +268,9 @@ data get block <p>          # instanced: LootTable tag SURVIVES, hopper stays em
 
 Cover: chest (instanced), chest with its table in `lootTableBlocklist` (must fall back to vanilla),
 `minecraft:hopper` with a loot table (unsupported container — must fall back to vanilla), barrel,
-chest minecart. Set `debugLogging: true` and check each verdict line reads correctly.
+chest minecart, and on 1.20.5+ a `decorated_pot` (instanced) and a blocklisted pot (vanilla).
+smoke.py also runs `/slashloot import` dry-run/confirm/status/discard against a generated
+import fixture folder on 1.20.5+ bands; claiming needs a player, so it is in the client pass. Set `debugLogging: true` and check each verdict line reads correctly.
 
 **Use non-default ports.** LocalServer is often running and holds 25565 / 25575; a test server on
 the defaults fails to bind, and an RCON client on 25575 talks to LocalServer instead. Set
@@ -289,9 +296,32 @@ install — `./gradlew :versions:1.21.1-neoforge:runServer`, with `run/eula.txt`
 Repeat for: trapped chest, barrel, shulker box, chest minecart, double chest (both lids), chest boat.
 A chest boat boards on a plain click, and opens on a sneak-click or the inventory key while riding.
 
+**Pots** (1.20.5+, `/place structure minecraft:trial_chambers` or `setblock` a pot with
+`LootTable:"minecraft:pots/trial_chambers/corridor"`): A hits it → A's items drop, break particles for
+A only, pot stays; B hits → B's own roll; A hits again → wobble only; A's arrow → no shatter; right-click
+holding an item → nothing inserted; creative break removes it.
+
+**Loot import:** stage a real per-player loot data copy, place a vanilla container with a staged
+record's table + seed at any position; a player in that record's `inventories` sees their leftovers,
+an opener with no inventory sees an empty copy, anyone else gets a fresh roll; `import status` drops by one.
+
+## Loot import
+
+`store/LootImport` reads a 1.21.1 per-container file format from another per-player loot mod
+(`<c>/<cc>/<uuid>.dat`, one gzipped SavedData each; the old mod need not be installed) and matches
+records to containers by **loot table + seed**, never position, so moved builds and new worlds work
+and new-seed containers can't collide. `/slashloot import "<dir>" [confirm]` writes
+`<world>/slashloot-import.json` (key → file, no item data). The first time a container with no
+SlashLoot entry is touched, `claimInto` reads that one file — items through vanilla's DataFixer,
+then `ItemStack.CODEC` — and fills the entry. It is called only from the interaction paths, never
+from `Handling`/`unpackLootTable`. Converting the old mod's blocks back to vanilla (keeping
+`LootTable`/`LootTableSeed`) is outside this mod. Other versions of that format are not read.
+
 ## Known limitations
 
-- **Hoppers extract nothing** from naturally-generated containers SlashLoot instances (the world container is always empty). Matches Lootr. Blacklisted and unsupported containers are unaffected.
+- **Hoppers extract nothing** from naturally-generated containers SlashLoot instances (the world container is always empty), pots included. Blacklisted and unsupported containers are unaffected.
+- **An instanced pot destroyed by an explosion, piston or `/setblock` drops nothing** (its world copy is never rolled); the prune then drops its entry, as for chests.
+- **Suspicious sand/gravel and item frames are not instanced**; the import dry run counts them as unsupported.
 - **Comparator output reads 0** from those same containers, for the same reason.
 - **No decay / re-roll** — per-player loot is permanent by design.
 - **Upgrading a world from 1.20.1 to 1.20.5+ flattens personal copies.** Measured: slots and items

@@ -8,6 +8,7 @@ import dev.blockacademy.slashloot.core.LootContainer;
 import dev.blockacademy.slashloot.core.LootRoller;
 import dev.blockacademy.slashloot.core.OpenSoundFx;
 import dev.blockacademy.slashloot.mixin.AccessorShulkerBoxBlock;
+import dev.blockacademy.slashloot.store.LootImport;
 import dev.blockacademy.slashloot.store.PlayerLootEntry;
 import dev.blockacademy.slashloot.store.SlashLootState;
 import net.minecraft.core.BlockPos;
@@ -56,6 +57,9 @@ public final class ContainerInteractionHandler {
         Handling.Decision decision = Handling.forBlock(level, pos, be);
         Handling.logBlock(level, pos, be, decision);
         if (!decision.instanced()) return InteractionResult.PASS;
+
+        // Pots have no menu; their loot is claimed by hitting them. See PotHandler.
+        if (decision.kind() == ContainerKind.POT) return PotHandler.onUse(player, level, pos, be, hand);
 
         // Player-dependent gates. Vanilla refuses to open in these cases too, so passing here can
         // never leave a container unrolled.
@@ -202,11 +206,18 @@ public final class ContainerInteractionHandler {
             int slots,
             boolean delegate) {
 
+        ResourceKey<LootTable> table = be instanceof RandomizableContainer rc ? rc.getLootTable() : null;
+        long seed = be instanceof RandomizableContainer rc ? rc.getLootTableSeed() : 0L;
+
+        boolean fresh = !store.hasBlockEntry(pos.asLong());
         PlayerLootEntry entry = store.blockEntry(pos.asLong());
+        // First touch of this container since SlashLoot took over: carry over who already looted it
+        // under the previous loot mod, and what they left in it, before anyone gets a fresh roll.
+        if (fresh && table != null) {
+            LootImport.claimInto(level, LootImport.Category.BLOCK, table, seed, entry, slots);
+        }
         LootContainer existing = entry.get(player.getUUID());
         if (existing == null) {
-            ResourceKey<LootTable> table = be instanceof RandomizableContainer rc ? rc.getLootTable() : null;
-            long seed = be instanceof RandomizableContainer rc ? rc.getLootTableSeed() : 0L;
             existing = entry.newContainer(slots);
             if (table != null) {
                 LootRoller.rollForBlock(level, pos, table, seed, player, existing);

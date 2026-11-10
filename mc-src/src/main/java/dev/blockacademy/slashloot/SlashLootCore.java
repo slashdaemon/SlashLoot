@@ -5,6 +5,7 @@ import dev.blockacademy.slashloot.config.SlashLootConfig;
 import dev.blockacademy.slashloot.handler.CleanupHandler;
 import dev.blockacademy.slashloot.handler.ContainerInteractionHandler;
 import dev.blockacademy.slashloot.handler.EntityInteractionHandler;
+import dev.blockacademy.slashloot.handler.PotHandler;
 import dev.blockacademy.slashloot.loader.LoaderBridge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ public final class SlashLootCore {
         loaderBridge.onUseBlock(ContainerInteractionHandler::interact);
         loaderBridge.onUseEntity(EntityInteractionHandler::interact);
         loaderBridge.onRegisterCommands(SlashLootCommand::register);
+        loaderBridge.onPlayerBreakAttempt(PotHandler::onBreakAttempt);
         loaderBridge.onPlayerBreakBlock(CleanupHandler::onBlockBroken);
         loaderBridge.onServerTick(CleanupHandler::onServerTick);
 

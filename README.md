@@ -6,7 +6,11 @@ Server-side per-player loot for naturally-generated containers in Minecraft. **F
 
 Each player who opens a naturally-generated chest, barrel, shulker box, chest minecart, or chest boat sees their own personal copy of the loot rolled from that container's loot table. One player's looting doesn't drain the chest for anyone else. No racing to dungeons; no empty mineshafts after the speedrunner went through.
 
+**Decorated pots** (the loot pots in trial chambers, Minecraft 1.20.5+) work the same way: hit one and your own loot pops out, with a shatter only you see. The pot stays for everyone else, and it can't be broken in survival.
+
 Player-placed containers behave exactly as in vanilla.
+
+**Coming from another per-player loot mod?** `/slashloot import` carries over who already looted each container and what they left in it. See [Switching from another per-player loot mod](#switching-from-another-per-player-loot-mod).
 
 ## Why server-side
 
@@ -92,6 +96,7 @@ Persistence lives at `world/<dimension>/data/slashloot.dat`. Full sequence diagr
   "dimensionBlocklist": [],
   "lootTableBlocklist": [],
   "handleUnknownContainers": false,
+  "instancePots": true,
   "delegateContainerAnimation": true,
   "playOpenCloseSounds": true,
   "cleanupOnBreak": true,
@@ -105,6 +110,7 @@ Persistence lives at `world/<dimension>/data/slashloot.dat`. Full sequence diagr
 - `dimensionBlocklist`: dimensions (e.g. `"minecraft:the_nether"`) served as ordinary shared vanilla loot.
 - `lootTableBlocklist`: loot tables (e.g. `"minecraft:chests/buried_treasure"`) to skip — useful for adventure maps that intentionally use shared loot.
 - `handleUnknownContainers`: instance modded containers SlashLoot does not specifically recognise. Off by default; leaving them to vanilla is the compatible choice.
+- `instancePots`: per-player decorated pots (1.20.5+). `false` leaves pots to vanilla, where the first player to break one takes its loot.
 - `delegateContainerAnimation`: forward open/close to the real container so lids animate, barrels open, and trapped chests emit redstone. Leave on unless a mod conflicts.
 - `playOpenCloseSounds`: manual open sound. Only used when `delegateContainerAnimation` is `false` (with delegation on, vanilla plays it).
 - `cleanupOnBreak`: drop a container's stored loot when it is destroyed.
@@ -126,13 +132,28 @@ All require permission level 2 (op).
 | `/slashloot prune`                      | Drop stored entries whose container no longer exists (loaded chunks)    |
 | `/slashloot stats`                      | Stored entry counts for the current dimension                           |
 | `/slashloot reload`                     | Re-read `config/slashloot.json`                                        |
+| `/slashloot import "<folder>"`          | Dry run: scan a copied per-player loot data folder and report what matches |
+| `/slashloot import "<folder>" confirm`  | Stage it; each container is carried over the first time it's opened     |
+| `/slashloot import status`              | Records still waiting to be claimed                                     |
+| `/slashloot import discard`             | Drop every staged record                                                |
+
+## Switching from another per-player loot mod
+
+Some per-player loot mods replace vanilla containers with their own blocks. Those blocks have to be turned back into vanilla ones (keeping each container's `LootTable` and `LootTableSeed`) before SlashLoot can serve them; SlashLoot does not do that conversion. What SlashLoot can carry over is the old mod's per-player record, if it kept one file per container in the 1.21.1 format SlashLoot reads:
+
+1. Copy the old world's per-player loot data folder (under `data/`) anywhere inside the server folder.
+2. `/slashloot import "that/folder"` prints what it found: containers it can match, players with items left behind, players who looted and took everything, and anything it skips. If it reports nothing importable, the format isn't one SlashLoot reads.
+3. Add `confirm` to stage it.
+
+Each record is matched to its vanilla container by loot table and seed, not position, so builds moved to new coordinates or into a new world still match. The first time a matched container is opened, players who looted it before find exactly what they left, and everyone else gets fresh loot. Chests, trapped chests, barrels, shulker boxes, chest minecarts and pots are supported; suspicious sand/gravel and item frames are not.
 
 ## Known limitations
 
 - **Hoppers don't pull from naturally-generated chests.** Since vanilla never bakes loot into the chest, hoppers attached to one see an empty container and extract nothing. Player-placed chests are unaffected — and so are containers on a blocklist or ones SlashLoot does not handle, which behave exactly as in vanilla.
 - **Comparator output is always 0** for those same containers, for the same reason. Most map-makers won't care; flag for redstone-heavy worlds.
 - **The background prune skips unloaded chunks.** A container destroyed in a chunk that never loads again keeps its (small) stored entry until a later pass finds the chunk loaded.
-- **Decorated pots and suspicious sand/gravel** are not covered. They use a different open mechanic (brushing) — would need separate hooks.
+- **Suspicious sand/gravel** is not covered. Brushing has no container menu and would need separate hooks.
+- **A loot pot destroyed by an explosion or piston drops nothing**, the same as any per-player container: its shared copy is never rolled.
 - **No looted-state visual indicator.** A color/texture change to mark already-opened containers would require a client mod. Out of scope for v1.
 
 Rationale for each limitation lives in [`docs/ARCHITECTURE.md` § Limitations and rationale](docs/ARCHITECTURE.md#limitations-and-rationale).

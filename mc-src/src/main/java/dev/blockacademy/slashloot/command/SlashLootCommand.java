@@ -1,12 +1,14 @@
 package dev.blockacademy.slashloot.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.blockacademy.slashloot.compat.Ids;
 import dev.blockacademy.slashloot.compat.Perms;
 import dev.blockacademy.slashloot.config.SlashLootConfig;
 import dev.blockacademy.slashloot.handler.CleanupHandler;
+import dev.blockacademy.slashloot.store.LootImport;
 import dev.blockacademy.slashloot.store.SlashLootState;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
@@ -19,7 +21,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.BlockHitResult;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * Admin commands (permission level 2):
@@ -32,7 +38,13 @@ import java.util.Collection;
  *   /slashloot prune                   drop entries whose container no longer exists (loaded chunks)
  *   /slashloot stats                   stored entry counts for this dimension
  *   /slashloot reload                  re-read config/slashloot.json
+ *   /slashloot import "&lt;dir&gt;"           dry run: scan a copied per-player loot data folder
+ *   /slashloot import "&lt;dir&gt;" confirm   stage it; each record is claimed on first open
+ *   /slashloot import status           staged records not yet claimed
+ *   /slashloot import discard          drop every staged record
  * </pre>
+ *
+ * <p>The import path is resolved against the server directory and refused if it points outside it.
  */
 public final class SlashLootCommand {
 
@@ -52,7 +64,13 @@ public final class SlashLootCommand {
                         .then(Commands.literal("all").executes(SlashLootCommand::forgetAll)))
                 .then(Commands.literal("prune").executes(SlashLootCommand::prune))
                 .then(Commands.literal("stats").executes(SlashLootCommand::stats))
-                .then(Commands.literal("reload").executes(SlashLootCommand::reload)));
+                .then(Commands.literal("reload").executes(SlashLootCommand::reload))
+                .then(Commands.literal("import")
+                        .then(Commands.literal("status").executes(SlashLootCommand::importStatus))
+                        .then(Commands.literal("discard").executes(SlashLootCommand::importDiscard))
+                        .then(Commands.argument("path", StringArgumentType.string())
+                                .executes(c -> importScan(c, false))
+                                .then(Commands.literal("confirm").executes(c -> importScan(c, true))))));
     }
 
     private static int forgetHere(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -126,6 +144,66 @@ public final class SlashLootCommand {
                 "SlashLoot: reloaded slashloot.json (debugLogging="
                         + SlashLootConfig.get().debugLogging + ")"), true);
         return 1;
+    }
+
+    private static int importScan(CommandContext<CommandSourceStack> ctx, boolean confirm) {
+        Path base = LootImport.serverDir();
+        Path dir = base.resolve(StringArgumentType.getString(ctx, "path")).normalize();
+        if (!dir.startsWith(base) || !Files.isDirectory(dir)) {
+            ctx.getSource().sendFailure(Component.literal(
+                    "SlashLoot: not a directory inside the server folder: " + dir));
+            return 0;
+        }
+        LootImport.Report report;
+        try {
+            report = LootImport.scan(dir);
+        } catch (IOException e) {
+            ctx.getSource().sendFailure(Component.literal("SlashLoot: could not read " + dir + ": " + e.getMessage()));
+            return 0;
+        }
+        String summary = "files=" + report.files
+                + "  importable=" + report.stagedTotal() + " " + report.staged
+                + "  players with leftovers=" + report.playersWithLeftovers
+                + "  looted, nothing left=" + report.openersOnly
+                + "  skipped: no table/seed=" + report.noTableOrSeed
+                + " ambiguous=" + report.ambiguous
+                + " unreadable=" + report.unreadable
+                + " unsupported=" + report.unsupported;
+        if (!confirm) {
+            ctx.getSource().sendSuccess(() -> Component.literal(
+                    "SlashLoot import (dry run) " + summary
+                            + ". Re-run with 'confirm' to stage. Each record is claimed the first time its"
+                            + " container (same loot table + seed) is opened."), false);
+            return report.stagedTotal();
+        }
+        try {
+            LootImport.stage(ctx.getSource().getServer(), report);
+        } catch (IOException e) {
+            ctx.getSource().sendFailure(Component.literal("SlashLoot: could not write the import index: " + e.getMessage()));
+            return 0;
+        }
+        ctx.getSource().sendSuccess(() -> Component.literal("SlashLoot import staged: " + summary), true);
+        return report.stagedTotal();
+    }
+
+    private static int importStatus(CommandContext<CommandSourceStack> ctx) {
+        Map<String, Integer> pending = LootImport.pending(ctx.getSource().getServer());
+        int total = pending.values().stream().mapToInt(Integer::intValue).sum();
+        ctx.getSource().sendSuccess(() -> Component.literal(
+                "SlashLoot import: " + total + " record(s) waiting to be claimed " + pending), false);
+        return total;
+    }
+
+    private static int importDiscard(CommandContext<CommandSourceStack> ctx) {
+        try {
+            int n = LootImport.discard(ctx.getSource().getServer());
+            ctx.getSource().sendSuccess(() -> Component.literal(
+                    "SlashLoot import: discarded " + n + " staged record(s)"), true);
+            return n;
+        } catch (IOException e) {
+            ctx.getSource().sendFailure(Component.literal("SlashLoot: could not write the import index: " + e.getMessage()));
+            return 0;
+        }
     }
 
     private static String posStr(BlockPos pos) {

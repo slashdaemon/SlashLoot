@@ -14,6 +14,7 @@ A quick open-and-close beats vanilla's 5-tick opener recheck, so every open here
 Screenshots are kept in <WORK>/shots/<band>-<loader>/; results in <WORK>/results/client.json.
 """
 import argparse
+from collections import Counter
 import importlib
 import json
 import os
@@ -76,12 +77,21 @@ def slots_box(img, rows=3):
     return (left + 16, top + 36, left + 16 + 324, top + 36 + rows * 36)
 
 
+def _flat_greys(img, box, floor=100):
+    """Neutral greys in box, at or above floor, most common first."""
+    return Counter(p for p in img.crop(box).get_flattened_data() if p[0] == p[1] == p[2] and p[0] >= floor)
+
+
 def menu_open(path):
-    """True when a container screen is showing: its panel is the only large flat (198,198,198) area."""
+    """True when a container screen is showing: a large flat grey panel (vanilla 198) plus large flat
+    grey slots (vanilla 139). Matched by their ratio, not exact values, because some GPU drivers
+    brighten the game's output (one laptop renders them as 255 and 213)."""
     img = Image.open(path).convert("RGB")
     w, h = img.size
-    px = list(img.crop((w // 2 - 176, 0, w // 2 + 176, h)).get_flattened_data())
-    return sum(p == (198, 198, 198) for p in px) > len(px) * 0.05
+    box = (w // 2 - 176, 0, w // 2 + 176, h)
+    n = (box[2] - box[0]) * h
+    greys = [p[0] for p, k in _flat_greys(img, box).most_common(4) if k > n * 0.02]
+    return any(b < a and 0.62 <= b / a <= 0.9 for a in greys for b in greys)
 
 
 def has_items(path):
@@ -89,9 +99,9 @@ def has_items(path):
     if not menu_open(path):
         return False
     img = Image.open(path).convert("RGB")
-    plain = {(139, 139, 139), (55, 55, 55), (255, 255, 255), (198, 198, 198)}
-    crop = img.crop(slots_box(img))
-    px = list(crop.get_flattened_data())
+    px = list(img.crop(slots_box(img)).get_flattened_data())
+    # The grid's own flat greys (slot, border, highlight), whatever brightness the driver applied.
+    plain = {p for p, _ in Counter(px).most_common(4) if p[0] == p[1] == p[2]}
     return sum(p not in plain for p in px) > len(px) * 0.01
 
 
@@ -101,9 +111,18 @@ def count_pixels(img, box):
     return sum(min(p) > 235 for p in img.crop((left + 10, top + 16, right, bottom)).get_flattened_data())
 
 
+def _item_mask(img, box):
+    """Which pixels of a slot are item rather than the grid's own flat greys."""
+    plain = {p for p, _ in Counter(img.crop(slots_box(img)).get_flattened_data()).most_common(4)
+             if p[0] == p[1] == p[2]}
+    return [p not in plain for p in img.crop(box).get_flattened_data()]
+
+
 def same_slots(a, b):
-    """Slot by slot: average colour for the item, because exact pixels would fail on the animated
-    enchantment glint, and the count corner separately, because a digit barely moves the average."""
+    """Slot by slot: the item's silhouette, because the animated enchantment glint changes an item's
+    colours (enough to move its average past any useful tolerance) but never its shape, and the count
+    corner separately, because a digit barely moves the silhouette. Same loot differs by at most ~13
+    pixels per slot; a different item by hundreds."""
     if not (menu_open(a) and menu_open(b)):
         return False
     ia, ib = Image.open(a).convert("RGB"), Image.open(b).convert("RGB")
@@ -111,8 +130,7 @@ def same_slots(a, b):
     for row in range((bottom - top) // 36):
         for col in range(9):
             box = (left + col * 36, top + row * 36, left + col * 36 + 36, top + row * 36 + 36)
-            ma, mb = ImageStat.Stat(ia.crop(box)).mean, ImageStat.Stat(ib.crop(box)).mean
-            if max(abs(x - y) for x, y in zip(ma, mb)) > 12:
+            if sum(x != y for x, y in zip(_item_mask(ia, box), _item_mask(ib, box))) > 40:
                 return False
             if abs(count_pixels(ia, box) - count_pixels(ib, box)) > 6:
                 return False
@@ -292,6 +310,9 @@ def stage_vehicles(r, c, out, mc):
     # Plain click boards, as in vanilla.
     open_vehicle(r, c, 40.5, "boat-plain", c.click)
     boarded = riding(r)
+    if not boarded:
+        # Vanilla opens a full boat instead of boarding it, and boats pick up mobs that walk into them.
+        out["boat_passengers"] = r(f"data get entity @e[type={boat},limit=1] Passengers")
     c.key("esc") if not boarded else None
     r(f"ride {PLAYER} dismount")
     time.sleep(0.5)

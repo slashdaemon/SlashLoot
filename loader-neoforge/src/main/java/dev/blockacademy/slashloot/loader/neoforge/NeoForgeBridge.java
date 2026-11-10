@@ -65,6 +65,11 @@ public final class NeoForgeBridge implements LoaderBridge {
     }
 
     @Override
+    public void onPlayerBreakAttempt(BreakAttemptHook hook) {
+        NeoForgeBreakEvent.registerAttempt(hook);
+    }
+
+    @Override
     public void onPlayerBreakBlock(BlockBreakHook hook) {
         // The one NeoForge event whose type moved: BlockEvent.BreakEvent up to 1.21.11,
         // event.level.block.BreakBlockEvent from 26.1. Handled by the break-* source variant that

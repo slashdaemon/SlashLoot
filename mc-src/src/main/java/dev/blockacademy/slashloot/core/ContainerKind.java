@@ -23,9 +23,15 @@ public enum ContainerKind {
     DOUBLE_CHEST(54, "container.chestDouble", Style.CHEST),
     MINECART_CHEST(27, "entity.minecraft.chest_minecart", Style.CHEST),
     MINECART_HOPPER(5, "entity.minecraft.hopper_minecart", Style.HOPPER),
-    CHEST_BOAT(27, "container.chest", Style.CHEST);
+    CHEST_BOAT(27, "container.chest", Style.CHEST),
+    /**
+     * A decorated pot holding a loot table (trial-chamber corridors, 1.20.5+). It has no menu: the
+     * player's own roll is dropped at the pot when they hit it, and the pot stays for everyone else.
+     * Served by {@code PotHandler}, never by {@link #menuProvider}.
+     */
+    POT(1, "block.minecraft.decorated_pot", Style.NONE);
 
-    private enum Style { CHEST, SHULKER, HOPPER }
+    private enum Style { CHEST, SHULKER, HOPPER, NONE }
 
     public final int defaultSlots;
     public final String translationKey;
@@ -38,7 +44,12 @@ public enum ContainerKind {
     }
 
     public boolean isBlock() {
-        return this == CHEST || this == BARREL || this == SHULKER || this == DOUBLE_CHEST;
+        return this == CHEST || this == BARREL || this == SHULKER || this == DOUBLE_CHEST || this == POT;
+    }
+
+    /** False for {@link #POT}: its loot is dropped, not shown in a menu. */
+    public boolean opensMenu() {
+        return style != Style.NONE;
     }
 
     /** Generic vanilla title, for callers with no real container name to preserve (e.g. minecart hopper). */
@@ -56,6 +67,7 @@ public enum ContainerKind {
      *     to report. See {@link LootChestMenu} for why chest-style menus need it.
      */
     public MenuProvider menuProvider(Container container, Container worldView, Component title) {
+        if (!opensMenu()) throw new IllegalStateException(name() + " has no menu");
         int slots = container.getContainerSize();
 
         // ShulkerBoxMenu hardcodes a 27-slot layout; a modded shulker of another size has to fall
